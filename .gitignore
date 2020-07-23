@@ -1,0 +1,7 @@
+.vscode/
+hsptmp
+obj
+packfile
+*.json
+*.ax
+haikei.png

@@ -1,0 +1,300 @@
+#include "hspogg.as"
+#include "mod_joystick.as"
+
+dmmini
+
+// screen size
+#define SCREEN_X 640
+#define SCREEN_Y 480
+// a stage chip amount(x * y)
+#define STAGE_X 256
+#define STAGE_Y 256
+
+#define CHIPSIZE 32
+
+#define PLAYER_WIDTH 30
+#define PLAYER_HEIGHT 60
+
+#define ENEMY_COUNT_MAX 16
+
+dim chip, STAGE_X, STAGE_Y
+
+*init
+
+	game_state = *game_init
+
+	playerX = 100.0
+	playerY = 100.0
+	playerXV = 0.0
+	playerYV = 0.0
+
+	grabityA = 0.4
+
+	Z_Frame = 0
+	Z_Trigger = 0
+
+	jump = 0
+
+	celload DIR_CUR + "\\data\\chip.png", 1
+	celdiv 1, CHIPSIZE, CHIPSIZE, 0, 0
+	gsel 1
+	chipCount = ginfo(12) / CHIPSIZE
+	gsel 0
+
+	dim chipType, chipCount
+
+	celload DIR_CUR + "\\data\\player.png", 3
+	celdiv 3, PLAYER_WIDTH, PLAYER_HEIGHT, 0, 0
+
+	notesel notebuf
+	noteload DIR_CUR + "\\data\\chiptype.txt"
+	index = 0
+	repeat chipCount
+		getstr chipattr, line_buf, index, ',', 8
+		chipType(cnt) = int(chipattr)
+		index += strsize
+	loop
+
+	
+	celload DIR_CUR + "\\data\\dash_page8.png", 4
+	celdiv 4, 40, 60, 0, 0
+
+	gmode 2
+	
+	dim joypad, 13
+
+//main roop
+repeat
+	redraw 0
+	gosub game_state
+	redraw 1
+	
+	await 16
+loop
+
+*title_
+	//TODO: 後で作る
+	return
+
+*game_init
+
+	//load data of map
+	notesel notebuf
+	mapFileName = "map_no" + mapNumber + ".txt"
+	noteload mapFileName
+	noteget line_buf, 0
+	split line_buf, ",", mapSizeX, mapSizeY
+	mapSizeX = int(mapSizeX)
+	mapSizeY = int(mapSizeY)
+	noteget line_buf, 1
+	mapBgmFile = line_buf
+	noteget line_buf, 2
+	mapBackImageFile = line_buf
+	celload DIR_CUR + "\\data\\" + mapBackImageFile, 2
+	gsel 2
+	backX = ginfo(12)
+	backY = ginfo(13)
+	gsel 0
+	repeat STAGE_Y
+		index = 0
+		noteget line_buf, cnt + 3
+		ccnt = cnt
+		repeat STAGE_X
+			getstr chipattr, line_buf, index, ',', 8
+			chip(cnt, ccnt) = int(chipattr)
+			index += strsize
+		loop
+	loop
+
+	//next_state -> "game"
+	game_state = *game
+	return
+
+*game
+
+	//set camera position
+	cameraX = playerX - double(SCREEN_X / 2)
+	cameraY = playerY - double(SCREEN_Y / 2)
+	if(cameraX < 0): cameraX = 0
+	if(cameraX + SCREEN_X > mapSizeX * CHIPSIZE): cameraX = mapSizeX * CHIPSIZE - SCREEN_X
+	if(cameraY < 0): cameraY = 0
+	if(cameraY + SCREEN_Y > mapSizeY * CHIPSIZE): cameraY = mapSizeY * CHIPSIZE - SCREEN_Y
+	
+	//draw back image
+	pos -(double(cameraX) / double(mapSizeX * CHIPSIZE - SCREEN_X)) * double(backX - SCREEN_X), -(double(cameraY) / double(mapSizeY * CHIPSIZE - SCREEN_Y)) * double(backY - SCREEN_Y)
+	celput 2 
+
+	//draw mapchip
+	repeat SCREEN_Y / CHIPSIZE + 1
+		ccnt = cnt
+		repeat SCREEN_X / CHIPSIZE + 1
+			pos -cameraX \ CHIPSIZE + cnt * CHIPSIZE, -cameraY \ CHIPSIZE + ccnt * CHIPSIZE
+			if(cameraX / CHIPSIZE + cnt < 0 || cameraX / CHIPSIZE + cnt > mapSizeX * CHIPSIZE) : continue
+			if(cameraY / CHIPSIZE + ccnt < 0 || cameraY / CHIPSIZE + ccnt > mapSizeY * CHIPSIZE) : continue
+			chipid = chip(int(cameraX / CHIPSIZE + cnt), int(cameraY / CHIPSIZE + ccnt))
+			if(chipid == 0):continue
+			celput 1, chipid - 1
+		loop
+	loop
+
+	//debug output place
+	; repeat 13
+	; 	pos 0, cnt * 15
+	; 	mes joypad(cnt)
+	; loop
+
+	//draw player
+	; boxf playerX - cameraX - PLAYER_WIDTH / 2, playerY - cameraY - PLAYER_HEIGHT / 2, playerX - cameraX + PLAYER_WIDTH / 2, playerY - cameraY + PLAYER_HEIGHT / 2
+	if(absf(playerXV) < 0.1){
+		pos 0, 0
+		mes "aaa"
+		pos playerX - PLAYER_WIDTH / 2 - cameraX, playerY - PLAYER_HEIGHT / 2 - cameraY
+		celput 3, playerFrame / 6 \ 6 + playerDirection * 6
+	}else{
+		if(playerDirection == 0){
+			xZoom = 1
+		}else{
+			xZoom = -1
+		}
+		pos playerX - 40 / 2 - cameraX + 40 / 2 - xZoom * 20, playerY - 60 / 2 - cameraY
+		a = playerFrame / 3 \ 10
+		celput 4, ((a)\10-1)+((a)\5-1 < 0)-int((a\10)/5), xZoom
+	}
+	if(playerXV < 0) : playerDirection = 0
+	if(playerXV > 0) : playerDirection = 1
+	playerFrame++
+
+	//get button push state
+	gosub *get_input
+
+	//dash button
+	if(x){
+		playerV = 3.7
+	}else{
+		playerV = 2.0
+	}
+
+	//input player move
+	if left{
+		playerDirection = 0
+		if(playerXV > 0.0){
+			playerXV += (-playerV - playerXV) * 0.1
+		}else{
+			playerXV = -playerV
+		}
+	}
+	if right{
+		playerDirection = 1
+		if(playerXV < 0.0){
+			playerXV += (playerV - playerXV) * 0.1
+		}else{
+			playerXV = playerV
+		}
+	}
+	if(left == 0 && right == 0) : playerXV += (0.0 - playerXV) * 0.1
+
+	//jump key
+	if(z && jump && Z_Frame == 0 && Z_Trigger){
+		Z_Frame = 15
+		jump = 0
+	}
+	if(z){
+		Z_Trigger = 0
+	}else{
+		Z_Trigger = 1
+	}
+	if(z && Z_Frame != 0){
+		Z_Frame--
+	}
+	if(Z_Frame != 0){
+		playerYV = -7.0
+	}
+	if(z == 0 && Z_Frame != 0){
+		Z_Frame = 0
+		Z_Trigger = 1
+	}
+
+	//grabity
+	playerYV += grabityA
+
+	//collide to block
+	jump = 0
+	isDash = 0
+	if(x):isDash = 1
+	repeat PLAYER_HEIGHT / CHIPSIZE + 5
+		ccnt = cnt
+		repeat PLAYER_WIDTH / CHIPSIZE + 5
+
+			//decide block index
+			x = int(playerX) / CHIPSIZE + cnt - 2
+			y = int(playerY) / CHIPSIZE + ccnt - 2
+			if(x < 0 || x >= STAGE_X) : continue
+			if(y < 0 || y >= STAGE_Y) : continue
+
+			//ignore through chip
+			if(chip(x, y) == 0) : continue
+
+			if(chipType(chip(x, y) - 1) == 0){ //chips that cannot pass through
+				//ride on the block
+				if((playerY + PLAYER_HEIGHT / 2 <= y * CHIPSIZE + isDash * 3)){// before add speed
+					playerLeftlegIsInTheBlock = playerX + playerXV - PLAYER_WIDTH / 2 > x * CHIPSIZE && playerX + playerXV - PLAYER_WIDTH / 2 < (x + 1) * CHIPSIZE && playerY + playerYV + PLAYER_HEIGHT / 2 >= y * CHIPSIZE && playerY + playerYV + PLAYER_HEIGHT / 2 <= (y + 1) * CHIPSIZE
+					playerRightlegIsInTheBlock = playerX + playerXV + PLAYER_WIDTH / 2 > x * CHIPSIZE && playerX + playerXV + PLAYER_WIDTH / 2 < (x + 1) * CHIPSIZE && playerY + playerYV + PLAYER_HEIGHT / 2 >= y * CHIPSIZE && playerY + playerYV + PLAYER_HEIGHT / 2 <= (y + 1) * CHIPSIZE
+					if(playerLeftlegIsInTheBlock || playerRightlegIsInTheBlock){//after add speed
+						jump = 1
+						playerY = double(y * CHIPSIZE) - double(PLAYER_HEIGHT / 2)
+						playerYV = 0.0
+					}
+				}else : if((playerY + PLAYER_HEIGHT / 2 > y * CHIPSIZE)){// before add speed
+					if(abs(playerX + playerXV - (x * CHIPSIZE + CHIPSIZE / 2)) < PLAYER_WIDTH / 2 + CHIPSIZE / 2 && abs(playerY + playerYV - (y * CHIPSIZE + CHIPSIZE / 2)) < PLAYER_HEIGHT / 2 + CHIPSIZE / 2){ //after add speed
+						hasUnderBlock = 0
+						if(y + 1 < STAGE_Y){
+							if(chip(x, y + 1) - 1 >= 0){
+								if(chipType(chip(x, y + 1) - 1) == 0){ //there is a block under this block
+									hasUnderBlock = 1
+								}
+							}
+						}
+						if(playerY - PLAYER_HEIGHT / 2 <= (y + 1) * CHIPSIZE || hasUnderBlock){//from side
+							if(playerX < x * CHIPSIZE + CHIPSIZE / 2){
+								playerX = double(x * CHIPSIZE - PLAYER_WIDTH / 2)
+							}else{
+								playerX = double((x + 1) * CHIPSIZE + PLAYER_WIDTH / 2)
+							}
+							playerXV = 0.0
+						}else{//from under
+							playerY = (y + 1) * CHIPSIZE + PLAYER_HEIGHT / 2
+							playerYV = 1.0
+						}
+					}
+				}
+			}
+		loop
+	loop
+
+	//add player speed to position
+	playerX += playerXV
+	playerY += playerYV
+
+	return
+
+*get_input
+	joyGetPosEx joypad
+	getkey left, 37
+	getkey right, 39
+	getkey z, 'Z'
+	getkey x, 'X'
+	if(stat == 0){
+		if(joypad(2) < 32000 - 16000){
+			left = 1
+		}
+		if(joypad(2) > 32000 + 16000){
+			right = 1
+		}
+		if(joypad(8) & 1){
+			z = 1
+		}
+		if(joypad(8) & 4){
+			x = 1
+		}
+	}
+return

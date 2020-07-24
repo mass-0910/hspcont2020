@@ -1,0 +1,51 @@
+repeat objectHeight / CHIPSIZE + 5
+		ccnt = cnt
+		repeat objectWidth / CHIPSIZE + 5
+
+			//decide block index
+			x = int(objectX) / CHIPSIZE + cnt - 2
+			y = int(objectY) / CHIPSIZE + ccnt - 2
+			if(x < 0 || x >= STAGE_X) : continue
+			if(y < 0 || y >= STAGE_Y) : continue
+
+			//ignore through chip
+			if(chip(x, y) == 0) : continue
+
+
+			if(chipType(chip(x, y) - 1) == 0){ //chips that cannot pass through
+				//ride on the block
+				if((objectY + objectHeight / 2 <= y * CHIPSIZE + isDash * 3)){// before add speed
+					objectLeftlegIsInTheBlock = objectX + objectXV - objectWidth / 2 > x * CHIPSIZE && objectX + objectXV - objectWidth / 2 < (x + 1) * CHIPSIZE && objectY + objectYV + objectHeight / 2 >= y * CHIPSIZE && objectY + objectYV + objectHeight / 2 <= (y + 1) * CHIPSIZE
+					objectRightlegIsInTheBlock = objectX + objectXV + objectWidth / 2 > x * CHIPSIZE && objectX + objectXV + objectWidth / 2 < (x + 1) * CHIPSIZE && objectY + objectYV + objectHeight / 2 >= y * CHIPSIZE && objectY + objectYV + objectHeight / 2 <= (y + 1) * CHIPSIZE
+					if(objectLeftlegIsInTheBlock || objectRightlegIsInTheBlock){//after add speed
+						jump = 1
+						objectY = double(y * CHIPSIZE) - double(objectHeight / 2)
+						objectYV = 0.0
+					}
+				}else : if((objectY + objectHeight / 2 > y * CHIPSIZE)){// before add speed
+					if(abs(objectX + objectXV - (x * CHIPSIZE + CHIPSIZE / 2)) < objectWidth / 2 + CHIPSIZE / 2 && abs(objectY + objectYV - (y * CHIPSIZE + CHIPSIZE / 2)) < objectHeight / 2 + CHIPSIZE / 2){ //after add speed
+						hasUnderBlock = 0
+						if(y + 1 < STAGE_Y){
+							if(chip(x, y + 1) - 1 >= 0){
+								if(chipType(chip(x, y + 1) - 1) == 0){ //there is a block under this block
+									hasUnderBlock = 1
+								}
+							}
+						}
+						if(objectY - objectHeight / 2 <= (y + 1) * CHIPSIZE || hasUnderBlock){//from side
+							if(objectX < x * CHIPSIZE + CHIPSIZE / 2){
+								objectX = double(x * CHIPSIZE - objectWidth / 2)
+							}else{
+								objectX = double((x + 1) * CHIPSIZE + objectWidth / 2)
+							}
+							objectXV = 0.0
+						}else{//from under
+							objectY = (y + 1) * CHIPSIZE + objectHeight / 2
+							objectYV = 1.0
+						}
+					}
+				}
+			}
+		loop
+	loop
+	return

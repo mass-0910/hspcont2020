@@ -1,7 +1,8 @@
 #include "hspogg.as"
 #include "mod_joystick.as"
 
-dmmini
+#define TRUE 1
+#define FALSE 0
 
 // screen size
 #define SCREEN_X 640
@@ -15,9 +16,134 @@ dmmini
 #define PLAYER_WIDTH 30
 #define PLAYER_HEIGHT 60
 
+#define ENEMY_CHIP_START_NUMBER 50
+
 #define ENEMY_COUNT_MAX 16
 
 dim chip, STAGE_X, STAGE_Y
+
+dim enemyIsUsed, ENEMY_COUNT_MAX
+dim enemyX, ENEMY_COUNT_MAX
+dim enemyY, ENEMY_COUNT_MAX
+dim enemyID, ENEMY_COUNT_MAX
+dim enemyImageHandle, ENEMY_COUNT_MAX
+
+
+enemyCount = 0
+
+dmmini
+
+goto *init 
+
+//Hit decision instruction
+#deffunc collide  var objectX, var objectY, var objectXV, var objectYV, var jump, int objectWidth, int objectHeight, str objectType
+	jump = 0
+	repeat objectHeight / CHIPSIZE + 5
+		ccnt = cnt
+		repeat objectWidth / CHIPSIZE + 5
+
+			//decide block index
+			x = int(objectX) / CHIPSIZE + cnt - 2
+			y = int(objectY) / CHIPSIZE + ccnt - 2
+			if(x < 0 || x >= STAGE_X) : continue
+			if(y < 0 || y >= STAGE_Y) : continue
+
+			//ignore through chip
+			if(chip(x, y) == 0) : continue
+
+			if(chipType(chip(x, y) - 1) == 0){ //chips that cannot pass through
+				//ride on the block
+				if((objectY + objectHeight / 2 <= y * CHIPSIZE + isDash * 3)){// before add speed
+					objectLeftlegIsInTheBlock = inRect(objectX + objectXV - objectWidth / 2, objectY + objectYV + objectHeight / 2, x * CHIPSIZE, y * CHIPSIZE, (x + 1) * CHIPSIZE, (y + 1) * CHIPSIZE, FALSE, TRUE)
+					objectRightlegIsInTheBlock = inRect(objectX + objectXV + objectWidth / 2, objectY + objectYV + objectHeight / 2, x * CHIPSIZE, y * CHIPSIZE, (x + 1) * CHIPSIZE, (y + 1) * CHIPSIZE, FALSE, TRUE)
+					if(objectLeftlegIsInTheBlock || objectRightlegIsInTheBlock){//after add speed
+						jump = 1
+						objectY = double(y * CHIPSIZE) - double(objectHeight / 2)
+						objectYV = 0.0
+					}
+				}else : if((objectY + objectHeight / 2 > y * CHIPSIZE)){// before add speed
+					if(abs(objectX + objectXV - (x * CHIPSIZE + CHIPSIZE / 2)) < objectWidth / 2 + CHIPSIZE / 2 && abs(objectY + objectYV - (y * CHIPSIZE + CHIPSIZE / 2)) < objectHeight / 2 + CHIPSIZE / 2){ //after add speed
+						hasUnderBlock = 0
+						if(y + 1 < STAGE_Y){
+							if(chip(x, y + 1) - 1 >= 0){
+								if(chipType(chip(x, y + 1) - 1) == 0){ //there is a block under this block
+									hasUnderBlock = 1
+								}
+							}
+						}
+						if(objectY - objectHeight / 2 <= (y + 1) * CHIPSIZE || hasUnderBlock){//from side
+							if(objectX < x * CHIPSIZE + CHIPSIZE / 2){
+								objectX = double(x * CHIPSIZE - objectWidth / 2)
+							}else{
+								objectX = double((x + 1) * CHIPSIZE + objectWidth / 2)
+							}
+							objectXV = 0.0
+						}else{//from under
+							objectY = (y + 1) * CHIPSIZE + objectHeight / 2
+							objectYV = 1.0
+						}
+					}
+				}
+			}
+		loop
+	loop
+	return
+
+#deffunc spawn var varx, var vary, int objectX, int objectY
+	varx = objectX
+	vary = objectY
+	return
+
+#deffunc enemySpawn int pointX, int pointY, int ID
+	repeat ENEMY_COUNT_MAX
+		if(enemyIsUsed(cnt) == FALSE){
+			enemyIsUsed(cnt) = TRUE
+			enemyID(cnt) = ID
+			spawn enemyX(cnt), enemyY(cnt), pointX, pointY
+			enemyCount++
+			break
+		}
+	loop
+	return 
+
+#deffunc get_input
+	joyGetPosEx joypad
+	getkey left, 37
+	getkey right, 39
+	getkey z, 'Z'
+	getkey x, 'X'
+	if(stat == 0){
+		if(joypad(2) < 32000 - 16000){
+			left = 1
+		}
+		if(joypad(2) > 32000 + 16000){
+			right = 1
+		}
+		if(joypad(8) & 1){
+			z = 1
+		}
+		if(joypad(8) & 4){
+			x = 1
+		}
+	}
+	return
+
+#defcfunc inRect double pointX, double pointY, double rectX1, double rectY1, double rectX2, double rectY2, int includeXEdge, int includeYEdge
+	if(includeXEdge){
+		xCond = pointX >= rectX1 && pointX <= rectX2
+	}else{
+		xCond = pointX > rectX1 && pointX < rectX2
+	}
+	if(includeYEdge){
+		yCond = pointY >= rectY1 && pointY <= rectY2
+	}else{
+		yCond = pointY > rectY1 && pointY < rectY2
+	}
+	if(xCond && yCond){
+		return TRUE
+	}else{
+		return FALSE
+	}
 
 *init
 
@@ -31,9 +157,9 @@ dim chip, STAGE_X, STAGE_Y
 	grabityA = 0.4
 
 	Z_Frame = 0
-	Z_Trigger = 0
+	Z_Trigger = FALSE
 
-	jump = 0
+	playerJump = 0
 
 	celload DIR_CUR + "\\data\\chip.png", 1
 	celdiv 1, CHIPSIZE, CHIPSIZE, 0, 0
@@ -54,10 +180,12 @@ dim chip, STAGE_X, STAGE_Y
 		chipType(cnt) = int(chipattr)
 		index += strsize
 	loop
-
 	
 	celload DIR_CUR + "\\data\\dash_page8.png", 4
 	celdiv 4, 40, 60, 0, 0
+
+	notesel enemyNote
+	noteload DIR_CUR + "\\data\\enemy.txt"
 
 	gmode 2
 	
@@ -95,6 +223,25 @@ loop
 	backX = ginfo(12)
 	backY = ginfo(13)
 	gsel 0
+	dim enemyIsAlive, STAGE_X, STAGE_Y
+
+	repeat STAGE_Y
+		index = 0
+		noteget line_buf, cnt + 3
+		ccnt = cnt
+		repeat STAGE_X
+			getstr chipattr, line_buf, index, ',', 8
+			chip(cnt, ccnt) = int(chipattr)
+			if(int(chipattr) >= ENEMY_CHIP_START_NUMBER){
+				enemyIsAlive(cnt, ccnt) = FALSE
+			}else{
+				enemyIsAlive(cnt, ccnt) = -1
+			}
+			index += strsize
+		loop
+	loop
+
+
 	repeat STAGE_Y
 		index = 0
 		noteget line_buf, cnt + 3
@@ -109,6 +256,11 @@ loop
 	//next_state -> "game"
 	game_state = *game
 	return
+
+	//init enemy variables
+	repeat ENEMY_COUNT_MAX
+		enemyIsUsed(cnt) = FALSE
+	loop
 
 *game
 
@@ -132,7 +284,8 @@ loop
 			if(cameraX / CHIPSIZE + cnt < 0 || cameraX / CHIPSIZE + cnt > mapSizeX * CHIPSIZE) : continue
 			if(cameraY / CHIPSIZE + ccnt < 0 || cameraY / CHIPSIZE + ccnt > mapSizeY * CHIPSIZE) : continue
 			chipid = chip(int(cameraX / CHIPSIZE + cnt), int(cameraY / CHIPSIZE + ccnt))
-			if(chipid == 0):continue
+			if(chipid == 0):continue //ignore null chip
+			if(chipid >= ENEMY_CHIP_START_NUMBER):continue //ignore enemy chip
 			celput 1, chipid - 1
 		loop
 	loop
@@ -146,8 +299,6 @@ loop
 	//draw player
 	; boxf playerX - cameraX - PLAYER_WIDTH / 2, playerY - cameraY - PLAYER_HEIGHT / 2, playerX - cameraX + PLAYER_WIDTH / 2, playerY - cameraY + PLAYER_HEIGHT / 2
 	if(absf(playerXV) < 0.1){
-		pos 0, 0
-		mes "aaa"
 		pos playerX - PLAYER_WIDTH / 2 - cameraX, playerY - PLAYER_HEIGHT / 2 - cameraY
 		celput 3, playerFrame / 6 \ 6 + playerDirection * 6
 	}else{
@@ -165,7 +316,7 @@ loop
 	playerFrame++
 
 	//get button push state
-	gosub *get_input
+	get_input
 
 	//dash button
 	if(x){
@@ -194,14 +345,14 @@ loop
 	if(left == 0 && right == 0) : playerXV += (0.0 - playerXV) * 0.1
 
 	//jump key
-	if(z && jump && Z_Frame == 0 && Z_Trigger){
+	if(z && playerJump && Z_Frame == 0 && Z_Trigger){
 		Z_Frame = 15
-		jump = 0
+		playerJump = 0
 	}
 	if(z){
-		Z_Trigger = 0
+		Z_Trigger = FALSE
 	}else{
-		Z_Trigger = 1
+		Z_Trigger = TRUE
 	}
 	if(z && Z_Frame != 0){
 		Z_Frame--
@@ -211,90 +362,59 @@ loop
 	}
 	if(z == 0 && Z_Frame != 0){
 		Z_Frame = 0
-		Z_Trigger = 1
+		Z_Trigger = TRUE
 	}
 
 	//grabity
 	playerYV += grabityA
 
 	//collide to block
-	jump = 0
+	playerJump = 0
 	isDash = 0
 	if(x):isDash = 1
-	repeat PLAYER_HEIGHT / CHIPSIZE + 5
-		ccnt = cnt
-		repeat PLAYER_WIDTH / CHIPSIZE + 5
-
-			//decide block index
-			x = int(playerX) / CHIPSIZE + cnt - 2
-			y = int(playerY) / CHIPSIZE + ccnt - 2
-			if(x < 0 || x >= STAGE_X) : continue
-			if(y < 0 || y >= STAGE_Y) : continue
-
-			//ignore through chip
-			if(chip(x, y) == 0) : continue
-
-			if(chipType(chip(x, y) - 1) == 0){ //chips that cannot pass through
-				//ride on the block
-				if((playerY + PLAYER_HEIGHT / 2 <= y * CHIPSIZE + isDash * 3)){// before add speed
-					playerLeftlegIsInTheBlock = playerX + playerXV - PLAYER_WIDTH / 2 > x * CHIPSIZE && playerX + playerXV - PLAYER_WIDTH / 2 < (x + 1) * CHIPSIZE && playerY + playerYV + PLAYER_HEIGHT / 2 >= y * CHIPSIZE && playerY + playerYV + PLAYER_HEIGHT / 2 <= (y + 1) * CHIPSIZE
-					playerRightlegIsInTheBlock = playerX + playerXV + PLAYER_WIDTH / 2 > x * CHIPSIZE && playerX + playerXV + PLAYER_WIDTH / 2 < (x + 1) * CHIPSIZE && playerY + playerYV + PLAYER_HEIGHT / 2 >= y * CHIPSIZE && playerY + playerYV + PLAYER_HEIGHT / 2 <= (y + 1) * CHIPSIZE
-					if(playerLeftlegIsInTheBlock || playerRightlegIsInTheBlock){//after add speed
-						jump = 1
-						playerY = double(y * CHIPSIZE) - double(PLAYER_HEIGHT / 2)
-						playerYV = 0.0
-					}
-				}else : if((playerY + PLAYER_HEIGHT / 2 > y * CHIPSIZE)){// before add speed
-					if(abs(playerX + playerXV - (x * CHIPSIZE + CHIPSIZE / 2)) < PLAYER_WIDTH / 2 + CHIPSIZE / 2 && abs(playerY + playerYV - (y * CHIPSIZE + CHIPSIZE / 2)) < PLAYER_HEIGHT / 2 + CHIPSIZE / 2){ //after add speed
-						hasUnderBlock = 0
-						if(y + 1 < STAGE_Y){
-							if(chip(x, y + 1) - 1 >= 0){
-								if(chipType(chip(x, y + 1) - 1) == 0){ //there is a block under this block
-									hasUnderBlock = 1
-								}
-							}
-						}
-						if(playerY - PLAYER_HEIGHT / 2 <= (y + 1) * CHIPSIZE || hasUnderBlock){//from side
-							if(playerX < x * CHIPSIZE + CHIPSIZE / 2){
-								playerX = double(x * CHIPSIZE - PLAYER_WIDTH / 2)
-							}else{
-								playerX = double((x + 1) * CHIPSIZE + PLAYER_WIDTH / 2)
-							}
-							playerXV = 0.0
-						}else{//from under
-							playerY = (y + 1) * CHIPSIZE + PLAYER_HEIGHT / 2
-							playerYV = 1.0
-						}
-					}
-				}
-			}
-		loop
-	loop
+	collide playerX, playerY, playerXV, playerYV, playerJump, PLAYER_WIDTH, PLAYER_HEIGHT, "player"
 
 	//add player speed to position
 	playerX += playerXV
 	playerY += playerYV
 
-	return
+	//enemy draw
+	repeat enemyCount
+		pos enemyX(cnt) - cameraX, enemyY(cnt) - cameraY
+		celput enemyImageHandle(cnt)
+	loop
 
-*get_input
-	joyGetPosEx joypad
-	getkey left, 37
-	getkey right, 39
-	getkey z, 'Z'
-	getkey x, 'X'
-	if(stat == 0){
-		if(joypad(2) < 32000 - 16000){
-			left = 1
-		}
-		if(joypad(2) > 32000 + 16000){
-			right = 1
-		}
-		if(joypad(8) & 1){
-			z = 1
-		}
-		if(joypad(8) & 4){
-			x = 1
-		}
-	}
-return
+	//enemy spawn
+	; out_space = 2
+	; quarter1 = SCREEN_X / CHIPSIZE + out_space * 2 + 1
+	; quarter2 = quarter1 * 2
+	; quarter3 = quarter2 + SCREEN_Y / CHIPSIZE + out_space * 2 - 1
+	; repeat (((SCREEN_X + SCREEN_Y) * 2) / CHIPSIZE) + out_space * 8//detect spawn on screen edge
+	; 	if(cnt < quarter1){
+	; 		x = cameraX / CHIPSIZE + cnt - out_space
+	; 		y = cameraY / CHIPSIZE - out_space
+	; 	}else : if(cnt < quarter2){
+	; 		x = cameraX / CHIPSIZE + cnt - out_space - quarter1
+	; 		y = cameraY / CHIPSIZE + SCREEN_Y / CHIPSIZE + out_space
+	; 	}else : if(cnt < quarter3){
+	; 		x = cameraX / CHIPSIZE - out_space
+	; 		y = cameraY / CHIPSIZE + cnt - out_space + 1 - quarter2
+	; 	}else{
+	; 		x = cameraX / CHIPSIZE + SCREEN_X / CHIPSIZE + out_space
+	; 		y = cameraY / CHIPSIZE + cnt - out_space + 1 - quarter3
+	; 	}
+	; 	if(x < 0 || x >= STAGE_X) : continue
+	; 	if(y < 0 || y >= STAGE_Y) : continue
+
+	; 	if(chip(x, y) >= ENEMY_CHIP_START_NUMBER){
+	; 		if(enemyIsAlive(x, y) == FALSE){
+	; 			enemyIsAlive(x, y) = TRUE
+	; 			enemySpawn x * CHIPSIZE + CHIPSIZE / 2 - 20, y * CHIPSIZE + CHIPSIZE / 2 - 20, chip(x, y) - ENEMY_CHIP_START_NUMBER
+	; 		}
+	; 	}
+	; loop
+	repeat enemyCount
+		if(enemyX(cnt) < playerX + SCREEN_X / 2 + CHIPSIZE * 2 && enemyX(cnt) < playerX + SCREEN_X / 2 + CHIPSIZE * 2)
+	loop
+
+	return

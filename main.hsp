@@ -22,12 +22,14 @@
 
 dim chip, STAGE_X, STAGE_Y
 
+//enemy attribute valiables
 dim enemyIsUsed, ENEMY_COUNT_MAX
 dim enemyX, ENEMY_COUNT_MAX
 dim enemyY, ENEMY_COUNT_MAX
 dim enemyID, ENEMY_COUNT_MAX
 dim enemyImageHandle, ENEMY_COUNT_MAX
-
+dim enemyIsAlive, ENEMY_COUNT_MAX
+dim enemyHP, ENEMY_COUNT_MAX
 
 enemyCount = 0
 
@@ -89,17 +91,19 @@ goto *init
 	loop
 	return
 
-#deffunc spawn var varx, var vary, int objectX, int objectY
-	varx = objectX
-	vary = objectY
-	return
-
 #deffunc enemySpawn int pointX, int pointY, int ID
 	repeat ENEMY_COUNT_MAX
 		if(enemyIsUsed(cnt) == FALSE){
 			enemyIsUsed(cnt) = TRUE
+			if(inRect(enemyX(cnt), enemyY(cnt), playerX - SCREEN_X / 2 - 100, playerY - SCREEN_Y / 2 - 100, playerX + SCREEN_X / 2 + 100, playerY + SCREEN_Y / 2 + 100, FALSE, FALSE)){
+				enemyIsAlive(cnt) = TRUE
+			}else{
+				enemyIsAlive(cnt) = FALSE
+			}
 			enemyID(cnt) = ID
-			spawn enemyX(cnt), enemyY(cnt), pointX, pointY
+			enemyX(cnt) = pointX
+			enemyY(cnt) = pointY
+			enemyHP(cnt) = int(getAttributeString(enemyNote, ID, "hp"))
 			enemyCount++
 			break
 		}
@@ -144,10 +148,37 @@ goto *init
 	}else{
 		return FALSE
 	}
+	return FALSE
+
+#defcfunc getAttributeString var note, int ID, str attributeName
+	notesel note
+	now_id = 0
+	linebuf = ""
+	attrname = ""
+	attrvalue = ""
+	retval = "null"
+	repeat notemax
+		noteget linebuf, cnt
+		if(strmid(linebuf, 0, 3) == "---"){
+			now_id++
+			continue
+		}
+		if(now_id == ID){
+			split linebuf, ":", attrname, attrvalue
+			if(strtrim(attrname) == attributeName){
+				retval = strtrim(attrvalue)
+				break
+			}
+		}
+	loop
+	noteunsel
+	return retval
 
 *init
 
 	game_state = *game_init
+
+	title "‚ ‚ ‚ "
 
 	playerX = 100.0
 	playerY = 100.0
@@ -201,7 +232,7 @@ repeat
 loop
 
 *title_
-	//TODO: å¾Œã§ä½œã‚‹
+	//TODO: Œã‚Åì‚é
 	return
 
 *game_init
@@ -223,33 +254,19 @@ loop
 	backX = ginfo(12)
 	backY = ginfo(13)
 	gsel 0
-	dim enemyIsAlive, STAGE_X, STAGE_Y
-
 	repeat STAGE_Y
 		index = 0
 		noteget line_buf, cnt + 3
 		ccnt = cnt
 		repeat STAGE_X
 			getstr chipattr, line_buf, index, ',', 8
-			chip(cnt, ccnt) = int(chipattr)
+			index += strsize
 			if(int(chipattr) >= ENEMY_CHIP_START_NUMBER){
-				enemyIsAlive(cnt, ccnt) = FALSE
+				enemySpawn cnt * CHIPSIZE + CHIPSIZE / 2, ccnt * CHIPSIZE + CHIPSIZE / 2, int(chipattr) - ENEMY_CHIP_START_NUMBER
+				chip(cnt, ccnt) = 0
 			}else{
-				enemyIsAlive(cnt, ccnt) = -1
+				chip(cnt, ccnt) = int(chipattr)
 			}
-			index += strsize
-		loop
-	loop
-
-
-	repeat STAGE_Y
-		index = 0
-		noteget line_buf, cnt + 3
-		ccnt = cnt
-		repeat STAGE_X
-			getstr chipattr, line_buf, index, ',', 8
-			chip(cnt, ccnt) = int(chipattr)
-			index += strsize
 		loop
 	loop
 
@@ -380,41 +397,19 @@ loop
 
 	//enemy draw
 	repeat enemyCount
-		pos enemyX(cnt) - cameraX, enemyY(cnt) - cameraY
-		celput enemyImageHandle(cnt)
+		if(enemyIsAlive(cnt)){
+			pos enemyX(cnt) - cameraX, enemyY(cnt) - cameraY
+			boxf enemyX(cnt) - 10 - cameraX, enemyY(cnt) - 10 - cameraY, enemyX(cnt) + 10 - cameraX, enemyY(cnt) + 10 - cameraY
+		}
 	loop
 
 	//enemy spawn
-	; out_space = 2
-	; quarter1 = SCREEN_X / CHIPSIZE + out_space * 2 + 1
-	; quarter2 = quarter1 * 2
-	; quarter3 = quarter2 + SCREEN_Y / CHIPSIZE + out_space * 2 - 1
-	; repeat (((SCREEN_X + SCREEN_Y) * 2) / CHIPSIZE) + out_space * 8//detect spawn on screen edge
-	; 	if(cnt < quarter1){
-	; 		x = cameraX / CHIPSIZE + cnt - out_space
-	; 		y = cameraY / CHIPSIZE - out_space
-	; 	}else : if(cnt < quarter2){
-	; 		x = cameraX / CHIPSIZE + cnt - out_space - quarter1
-	; 		y = cameraY / CHIPSIZE + SCREEN_Y / CHIPSIZE + out_space
-	; 	}else : if(cnt < quarter3){
-	; 		x = cameraX / CHIPSIZE - out_space
-	; 		y = cameraY / CHIPSIZE + cnt - out_space + 1 - quarter2
-	; 	}else{
-	; 		x = cameraX / CHIPSIZE + SCREEN_X / CHIPSIZE + out_space
-	; 		y = cameraY / CHIPSIZE + cnt - out_space + 1 - quarter3
-	; 	}
-	; 	if(x < 0 || x >= STAGE_X) : continue
-	; 	if(y < 0 || y >= STAGE_Y) : continue
-
-	; 	if(chip(x, y) >= ENEMY_CHIP_START_NUMBER){
-	; 		if(enemyIsAlive(x, y) == FALSE){
-	; 			enemyIsAlive(x, y) = TRUE
-	; 			enemySpawn x * CHIPSIZE + CHIPSIZE / 2 - 20, y * CHIPSIZE + CHIPSIZE / 2 - 20, chip(x, y) - ENEMY_CHIP_START_NUMBER
-	; 		}
-	; 	}
-	; loop
 	repeat enemyCount
-		if(enemyX(cnt) < playerX + SCREEN_X / 2 + CHIPSIZE * 2 && enemyX(cnt) < playerX + SCREEN_X / 2 + CHIPSIZE * 2)
+		if(inRect(enemyX(cnt), enemyY(cnt), playerX - SCREEN_X / 2 - 100, playerY - SCREEN_Y / 2 - 100, playerX + SCREEN_X / 2 + 100, playerY + SCREEN_Y / 2 + 100, FALSE, FALSE)){
+			if(enemyIsAlive(cnt) == FALSE){
+				enemyIsAlive(cnt) = TRUE
+			}
+		}
 	loop
 
 	return

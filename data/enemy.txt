@@ -1,2 +1,8 @@
-hoge.txt
-
+name : echigo
+hp : 10
+action : proceed
+width : 
+---
+name : hanako
+hp : 2
+action : proceed

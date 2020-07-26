@@ -10,26 +10,45 @@
 // a stage chip amount(x * y)
 #define STAGE_X 256
 #define STAGE_Y 256
-
+//a chip width and height
 #define CHIPSIZE 32
-
+//player width and height
 #define PLAYER_WIDTH 30
 #define PLAYER_HEIGHT 60
-
+//enemy number on map file
 #define ENEMY_CHIP_START_NUMBER 50
-
+//enemy max count
 #define ENEMY_COUNT_MAX 16
+//enemy action count max
+#define ENEMYACTION_COUNT_MAX 8
+//enemy move id
+#define ENEMY_DONT_MOVE    -1
+#define ENEMY_MOVE_PROCEED 0
+#define ENEMY_MOVE_JUMP    1
+//enemy direction value
+#define ENEMY_LEFT  0
+#define ENEMY_RIGHT 1
 
 dim chip, STAGE_X, STAGE_Y
 
 //enemy attribute valiables
 dim enemyIsUsed, ENEMY_COUNT_MAX
-dim enemyX, ENEMY_COUNT_MAX
-dim enemyY, ENEMY_COUNT_MAX
+ddim enemyX, ENEMY_COUNT_MAX
+ddim enemyY, ENEMY_COUNT_MAX
+ddim enemyOriginX, ENEMY_COUNT_MAX
+ddim enemyOriginY, ENEMY_COUNT_MAX
+ddim enemyXV, ENEMY_COUNT_MAX
+ddim enemyYV, ENEMY_COUNT_MAX
+dim enemyWidth, ENEMY_COUNT_MAX
+dim enemyHeight, ENEMY_COUNT_MAX
 dim enemyID, ENEMY_COUNT_MAX
 dim enemyImageHandle, ENEMY_COUNT_MAX
 dim enemyIsAlive, ENEMY_COUNT_MAX
 dim enemyHP, ENEMY_COUNT_MAX
+dim enemyMoveType, ENEMY_COUNT_MAX
+dim enemyDirection, ENEMY_COUNT_MAX
+ddim enemyMoveValue, ENEMY_COUNT_MAX
+dim enemyActionType, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
 
 enemyCount = 0
 
@@ -55,7 +74,12 @@ goto *init
 
 			if(chipType(chip(x, y) - 1) == 0){ //chips that cannot pass through
 				//ride on the block
-				if((objectY + objectHeight / 2 <= y * CHIPSIZE + isDash * 3)){// before add speed
+				if(objectType == "player"){
+					allowStep = isDash * 3
+				}else{
+					allowStep = 0
+				}
+				if((objectY + objectHeight / 2 <= y * CHIPSIZE + allowStep)){// before add speed
 					objectLeftlegIsInTheBlock = inRect(objectX + objectXV - objectWidth / 2, objectY + objectYV + objectHeight / 2, x * CHIPSIZE, y * CHIPSIZE, (x + 1) * CHIPSIZE, (y + 1) * CHIPSIZE, FALSE, TRUE)
 					objectRightlegIsInTheBlock = inRect(objectX + objectXV + objectWidth / 2, objectY + objectYV + objectHeight / 2, x * CHIPSIZE, y * CHIPSIZE, (x + 1) * CHIPSIZE, (y + 1) * CHIPSIZE, FALSE, TRUE)
 					if(objectLeftlegIsInTheBlock || objectRightlegIsInTheBlock){//after add speed
@@ -81,7 +105,7 @@ goto *init
 							}
 							objectXV = 0.0
 						}else{//from under
-							objectY = (y + 1) * CHIPSIZE + objectHeight / 2
+							objectY = double((y + 1) * CHIPSIZE + objectHeight / 2)
 							objectYV = 1.0
 						}
 					}
@@ -95,27 +119,48 @@ goto *init
 	repeat ENEMY_COUNT_MAX
 		if(enemyIsUsed(cnt) == FALSE){
 			enemyIsUsed(cnt) = TRUE
-			if(inRect(enemyX(cnt), enemyY(cnt), playerX - SCREEN_X / 2 - 100, playerY - SCREEN_Y / 2 - 100, playerX + SCREEN_X / 2 + 100, playerY + SCREEN_Y / 2 + 100, FALSE, FALSE)){
+			enemyX(cnt) = double(pointX)
+			enemyY(cnt) = double(pointY)
+			enemyOriginX(cnt) = double(pointX)
+			enemyOriginY(cnt) = double(pointY)
+			if(inRect(enemyX(cnt), enemyY(cnt), cameraX - 100, cameraY - 100, cameraX + SCREEN_X + 100, cameraY + SCREEN_Y + 100, FALSE, FALSE)){
 				enemyIsAlive(cnt) = TRUE
 			}else{
 				enemyIsAlive(cnt) = FALSE
 			}
 			enemyID(cnt) = ID
-			enemyX(cnt) = pointX
-			enemyY(cnt) = pointY
+			enemyXV(cnt) = 0.0
+			enemyYV(cnt) = 0.0
+			enemyWidth(cnt) = int(getAttributeString(enemyNote, ID, "width"))
+			enemyHeight(cnt) = int(getAttributeString(enemyNote, ID, "height"))
 			enemyHP(cnt) = int(getAttributeString(enemyNote, ID, "hp"))
+			switch getAttributeString(enemyNote, ID, "move")
+				case "proceed" : enemyMoveType(cnt) = ENEMY_MOVE_PROCEED : swbreak
+				case "jump" : enemyMoveType(cnt) = ENEMY_MOVE_JUMP : swbreak
+				default : enemyMoveType(cnt) = ENEMY_DONT_MOVE : swbreak
+			swend
+			enemyMoveValue(cnt) = double(getAttributeString(enemyNote, ID, "movevalue"))
+			enemyDirection(cnt) = ENEMY_LEFT
 			enemyCount++
 			break
 		}
 	loop
 	return 
 
+#deffunc enemyDespawn int cnt_index
+	enemyX(cnt_index) = enemyOriginX(cnt_index)
+	enemyY(cnt_index) = enemyOriginY(cnt_index)
+	enemyIsAlive(cnt_index) = FALSE
+	return
+
 #deffunc get_input
 	joyGetPosEx joypad
-	getkey left, 37
-	getkey right, 39
-	getkey z, 'Z'
-	getkey x, 'X'
+	if(ginfo(2) != -1){
+		getkey left, 37
+		getkey right, 39
+		getkey z, 'Z'
+		getkey x, 'X'
+	}
 	if(stat == 0){
 		if(joypad(2) < 32000 - 16000){
 			left = 1
@@ -174,16 +219,28 @@ goto *init
 	noteunsel
 	return retval
 
+#deffunc camera double centerX, double centerY, int mapX, int mapY
+	cameraX = centerX - double(SCREEN_X / 2)
+	cameraY = centerY - double(SCREEN_Y / 2)
+	if(cameraX < 0): cameraX = 0
+	if(cameraX + SCREEN_X > mapX * CHIPSIZE): cameraX = mapX * CHIPSIZE - SCREEN_X
+	if(cameraY < 0): cameraY = 0
+	if(cameraY + SCREEN_Y > mapY * CHIPSIZE): cameraY = mapY * CHIPSIZE - SCREEN_Y
+	return
+
 *init
 
 	game_state = *game_init
 
-	title "‚ ‚ ‚ "
+	title "ƒ^ƒCƒgƒ‹–¢’è"
 
 	playerX = 100.0
 	playerY = 100.0
 	playerXV = 0.0
 	playerYV = 0.0
+
+	cameraX = 0.0
+	cameraY = 0.0
 
 	grabityA = 0.4
 
@@ -254,6 +311,11 @@ loop
 	backX = ginfo(12)
 	backY = ginfo(13)
 	gsel 0
+	playerX = 100.0
+	playerY = 100.0
+	playerXV = 0.0
+	playerYV = 0.0
+	camera playerX, playerY, mapSizeX, mapSizeY
 	repeat STAGE_Y
 		index = 0
 		noteget line_buf, cnt + 3
@@ -282,12 +344,7 @@ loop
 *game
 
 	//set camera position
-	cameraX = playerX - double(SCREEN_X / 2)
-	cameraY = playerY - double(SCREEN_Y / 2)
-	if(cameraX < 0): cameraX = 0
-	if(cameraX + SCREEN_X > mapSizeX * CHIPSIZE): cameraX = mapSizeX * CHIPSIZE - SCREEN_X
-	if(cameraY < 0): cameraY = 0
-	if(cameraY + SCREEN_Y > mapSizeY * CHIPSIZE): cameraY = mapSizeY * CHIPSIZE - SCREEN_Y
+	camera playerX, playerY, mapSizeX, mapSizeY
 	
 	//draw back image
 	pos -(double(cameraX) / double(mapSizeX * CHIPSIZE - SCREEN_X)) * double(backX - SCREEN_X), -(double(cameraY) / double(mapSizeY * CHIPSIZE - SCREEN_Y)) * double(backY - SCREEN_Y)
@@ -306,12 +363,6 @@ loop
 			celput 1, chipid - 1
 		loop
 	loop
-
-	//debug output place
-	; repeat 13
-	; 	pos 0, cnt * 15
-	; 	mes joypad(cnt)
-	; loop
 
 	//draw player
 	; boxf playerX - cameraX - PLAYER_WIDTH / 2, playerY - cameraY - PLAYER_HEIGHT / 2, playerX - cameraX + PLAYER_WIDTH / 2, playerY - cameraY + PLAYER_HEIGHT / 2
@@ -399,16 +450,54 @@ loop
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
 			pos enemyX(cnt) - cameraX, enemyY(cnt) - cameraY
-			boxf enemyX(cnt) - 10 - cameraX, enemyY(cnt) - 10 - cameraY, enemyX(cnt) + 10 - cameraX, enemyY(cnt) + 10 - cameraY
+			boxf enemyX(cnt) - enemyWidth(cnt) / 2 - cameraX, enemyY(cnt) - enemyHeight(cnt) / 2 - cameraY, enemyX(cnt) + enemyWidth(cnt) / 2 - cameraX, enemyY(cnt) + enemyHeight(cnt) / 2 - cameraY
 		}
 	loop
 
 	//enemy spawn
 	repeat enemyCount
-		if(inRect(enemyX(cnt), enemyY(cnt), playerX - SCREEN_X / 2 - 100, playerY - SCREEN_Y / 2 - 100, playerX + SCREEN_X / 2 + 100, playerY + SCREEN_Y / 2 + 100, FALSE, FALSE)){
+		if(inRect(enemyX(cnt), enemyY(cnt), cameraX - 200, cameraY - 200, cameraX + SCREEN_X + 200, cameraY + SCREEN_Y + 200, FALSE, FALSE) && inRect(enemyX(cnt), enemyY(cnt), cameraX - 100, cameraY - 100, cameraX + SCREEN_X + 100, cameraY + SCREEN_Y + 100, FALSE, FALSE) == FALSE){
 			if(enemyIsAlive(cnt) == FALSE){
 				enemyIsAlive(cnt) = TRUE
 			}
+		}
+	loop
+
+	//enemy despawn
+	repeat enemyCount
+		if(enemyIsAlive(cnt)){
+			if(inRect(enemyX(cnt), enemyY(cnt), cameraX - 300, cameraY - 300, cameraX + SCREEN_X + 300, cameraY + SCREEN_Y + 300, FALSE, FALSE) == FALSE){
+				enemyDespawn cnt
+			}
+		}
+	loop
+
+	//enemy move
+	count = 0
+	repeat enemyCount
+		if(enemyIsAlive(cnt)):count++
+	loop
+	pos 0,0
+	mes count
+	repeat enemyCount
+		if(enemyIsAlive(cnt)){
+			//simply remain to proceed in same speed
+			if(enemyMoveType(cnt) == ENEMY_MOVE_PROCEED){
+				if(enemyDirection(cnt) == ENEMY_LEFT){
+					enemyXV(cnt) = -enemyMoveValue(cnt)
+				}else : if(enemyDirection(cnt) == ENEMY_RIGHT){
+					enemyXV(cnt) = enemyMoveValue(cnt)
+				}
+				//gravity
+				enemyYV(cnt) += grabityA
+			}
+
+			tmp = 0
+			collide enemyX(cnt), enemyY(cnt), enemyXV(cnt), enemyYV(cnt), tmp, enemyWidth(cnt), enemyHeight(cnt), "enemy"
+
+			//add enemy speed to position
+			enemyX(cnt) += enemyXV(cnt)
+			enemyY(cnt) += enemyYV(cnt)
 		}
 	loop
 

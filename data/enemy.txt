@@ -1,8 +1,13 @@
 name : echigo
 hp : 10
-action : proceed
-width : 
+move : proceed
+movevalue : 10
+width : 30
+height : 30
 ---
 name : hanako
 hp : 2
-action : proceed
+move : jump
+movevalue : 2.0
+width : 40
+height : 40

@@ -21,13 +21,21 @@
 #define ENEMY_COUNT_MAX 16
 //enemy action count max
 #define ENEMYACTION_COUNT_MAX 8
+//enemy direction value
+#define ENEMY_LEFT  -1
+#define ENEMY_RIGHT 1
+
 //enemy move id
 #define ENEMY_DONT_MOVE    -1
-#define ENEMY_MOVE_PROCEED 0
-#define ENEMY_MOVE_JUMP    1
-//enemy direction value
-#define ENEMY_LEFT  0
-#define ENEMY_RIGHT 1
+#define ENEMY_MOVE_PROCEED 1
+
+//enemy action id
+#define ENEMY_ACTION_JUMP 1
+#define ENEMY_ACTION_RETURN 2
+
+//enemy condition id
+#define ENEMY_COND_DEFAULT   1
+#define ENEMY_COND_FRONTWALL 2
 
 dim chip, STAGE_X, STAGE_Y
 
@@ -45,10 +53,13 @@ dim enemyID, ENEMY_COUNT_MAX
 dim enemyImageHandle, ENEMY_COUNT_MAX
 dim enemyIsAlive, ENEMY_COUNT_MAX
 dim enemyHP, ENEMY_COUNT_MAX
-dim enemyMoveType, ENEMY_COUNT_MAX
 dim enemyDirection, ENEMY_COUNT_MAX
-ddim enemyMoveValue, ENEMY_COUNT_MAX
+ddim enemyMoveValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
+dim enemyMoveType, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
+dim enemyMoveTypeCondition, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
 dim enemyActionType, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
+dim enemyActionCondition, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
+ddim enemyActionValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
 
 enemyCount = 0
 
@@ -115,6 +126,73 @@ goto *init
 	loop
 	return
 
+#defcfunc judgeCondition int chara_index, array typeCondition
+	cond_num = 0
+	default_index = -1
+	repeat ENEMYACTION_COUNT_MAX
+		if(typeCondition(chara_index, cnt) == ENEMY_COND_DEFAULT){
+			default_index = cnt
+		}else : if(typeCondition(chara_index, cnt) == ENEMY_COND_FRONTWALL){
+			pos chara_index * 100, 100
+			mes typeCondition(chara_index, cnt)
+			x = int(enemyX(chara_index) + (enemyWidth(chara_index) / 2 + 20) * enemyDirection(chara_index)) / CHIPSIZE
+			y = int(enemyY(chara_index)) / CHIPSIZE
+			if(x >= 0 && x < STAGE_X && y >= 0 && y < STAGE_Y){
+				// boxf x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY, (x + 1) * CHIPSIZE - cameraX, (y + 1) * CHIPSIZE - cameraY 
+				if(chip(x, y) > 0){
+					if(chipType(chip(x, y) - 1) == 0){
+						cond_num = cnt
+						break
+					}
+				}
+			}
+		}else : if(typeCondition(chara_index, cnt) == 0 || cnt == ENEMYACTION_COUNT_MAX - 1){
+			cond_num = default_index
+			break
+		}
+	loop
+	return cond_num
+
+#deffunc setEnemyAttrValue var moveType, var moveTypeCondition, var moveValue, str attr
+	// name(value) in condition
+	attr_valiable = attr
+	namevalue = ""
+	name = ""
+	value = ""
+	condition = ""
+	split attr_valiable, "in", namevalue, condition
+	split namevalue, "(", name, value
+	value = strtrim(value)
+	value = strtrim(value, 0, ')')
+	name = strtrim(name)
+	condition = strtrim(condition)
+	mes "name : " + name
+	mes "value : " + value
+	mes "cond : \"" + condition + "\""
+	switch name
+		//move
+		case "stop" : moveType = ENEMY_DONT_MOVE : swbreak
+		case "proceed" : moveType = ENEMY_MOVE_PROCEED : swbreak
+		//action
+		case "jump" : moveType = ENEMY_ACTION_JUMP : swbreak
+		case "return" : moveType = ENEMY_ACTION_RETURN : swbreak
+		default : moveType = ENEMY_DONT_MOVE : swbreak
+	swend
+	setEnemyConditionAttrValue moveTypeCondition, condition
+	if(moveType != ENEMY_DONT_MOVE){
+		moveValue = double(value)
+	}
+	return
+
+#deffunc setEnemyConditionAttrValue var moveCond, str avalue
+	mes avalue
+	switch avalue
+		case "default" : moveCond = ENEMY_COND_DEFAULT : swbreak
+		case "frontwall" : moveCond = ENEMY_COND_FRONTWALL : swbreak
+		default : moveType = 0 : swbreak
+	swend
+	return
+
 #deffunc enemySpawn int pointX, int pointY, int ID
 	repeat ENEMY_COUNT_MAX
 		if(enemyIsUsed(cnt) == FALSE){
@@ -131,15 +209,28 @@ goto *init
 			enemyID(cnt) = ID
 			enemyXV(cnt) = 0.0
 			enemyYV(cnt) = 0.0
-			enemyWidth(cnt) = int(getAttributeString(enemyNote, ID, "width"))
-			enemyHeight(cnt) = int(getAttributeString(enemyNote, ID, "height"))
-			enemyHP(cnt) = int(getAttributeString(enemyNote, ID, "hp"))
-			switch getAttributeString(enemyNote, ID, "move")
-				case "proceed" : enemyMoveType(cnt) = ENEMY_MOVE_PROCEED : swbreak
-				case "jump" : enemyMoveType(cnt) = ENEMY_MOVE_JUMP : swbreak
-				default : enemyMoveType(cnt) = ENEMY_DONT_MOVE : swbreak
-			swend
-			enemyMoveValue(cnt) = double(getAttributeString(enemyNote, ID, "movevalue"))
+			enemyWidth(cnt) = int(getAttributeString(enemyNote, ID, "width", 0))
+			enemyHeight(cnt) = int(getAttributeString(enemyNote, ID, "height", 0))
+			enemyHP(cnt) = int(getAttributeString(enemyNote, ID, "hp", 0))
+			ccnt = cnt
+			mes "loop start"
+			repeat
+				mes "cnt" + cnt
+				attrvalue = getAttributeString(enemyNote, ID, "move", cnt)
+				mes "attrvalue = " + attrvalue
+				if(attrvalue == "null") : break
+				setEnemyAttrValue enemyMoveType(ccnt, cnt), enemyMoveTypeCondition(ccnt, cnt), enemyMoveValue(ccnt, cnt), attrvalue
+				mes "result : " + str(enemyMoveType(ccnt, cnt)) + " " + str(enemyMoveTypeCondition(ccnt, cnt)) + " " + str(enemyMoveValue(ccnt, cnt))
+				// await 1
+			loop
+			// redraw 1
+			// stop
+			repeat
+				attrvalue = getAttributeString(enemyNote, ID, "action", cnt)
+				if(attrvalue == "null") : break
+				setEnemyAttrValue enemyActionType(ccnt, cnt), enemyActionCondition(ccnt, cnt), enemyActionValue(ccnt, cnt), attrvalue
+				mes enemyActionCondition(ccnt, cnt)
+			loop
 			enemyDirection(cnt) = ENEMY_LEFT
 			enemyCount++
 			break
@@ -155,6 +246,10 @@ goto *init
 
 #deffunc get_input
 	joyGetPosEx joypad
+	left = 0
+	right = 0
+	x = 0
+	z = 0
 	if(ginfo(2) != -1){
 		getkey left, 37
 		getkey right, 39
@@ -195,13 +290,14 @@ goto *init
 	}
 	return FALSE
 
-#defcfunc getAttributeString var note, int ID, str attributeName
+#defcfunc getAttributeString var note, int ID, str attributeName, int num
 	notesel note
 	now_id = 0
 	linebuf = ""
 	attrname = ""
 	attrvalue = ""
 	retval = "null"
+	num_valiable = num
 	repeat notemax
 		noteget linebuf, cnt
 		if(strmid(linebuf, 0, 3) == "---"){
@@ -211,8 +307,12 @@ goto *init
 		if(now_id == ID){
 			split linebuf, ":", attrname, attrvalue
 			if(strtrim(attrname) == attributeName){
-				retval = strtrim(attrvalue)
-				break
+				if(num_valiable > 0){
+					num_valiable--
+				}else{
+					retval = strtrim(attrvalue)
+					break
+				}
 			}
 		}
 	loop
@@ -388,7 +488,7 @@ loop
 
 	//dash button
 	if(x){
-		playerV = 3.7
+		playerV = 4.5
 	}else{
 		playerV = 2.0
 	}
@@ -472,23 +572,36 @@ loop
 		}
 	loop
 
-	//enemy move
-	count = 0
-	repeat enemyCount
-		if(enemyIsAlive(cnt)):count++
-	loop
-	pos 0,0
-	mes count
+	//enemy action
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
-			//simply remain to proceed in same speed
-			if(enemyMoveType(cnt) == ENEMY_MOVE_PROCEED){
+			cond_num = judgeCondition(cnt, enemyActionCondition)
+			pos cnt * 100, 120
+			mes cond_num
+			if(cond_num == -1) : continue
+			if(enemyActionType(cnt, cond_num) == ENEMY_ACTION_JUMP){
+				enemyYV(cnt) = enemyActionValue(cnt, cond_num)
+			}else : if(enemyActionType(cnt, cond_num) == ENEMY_ACTION_RETURN){
+				enemyDirection(cnt) *= -1
+			}
+		}
+	loop
+
+	//enemy move
+	repeat enemyCount
+		if(enemyIsAlive(cnt)){
+			cond_num = judgeCondition(cnt, enemyMoveTypeCondition)
+			pos cnt * 100, 0
+			mes enemyMoveType(cnt, cond_num)
+
+			if(enemyMoveType(cnt, cond_num) == ENEMY_MOVE_PROCEED){
 				if(enemyDirection(cnt) == ENEMY_LEFT){
-					enemyXV(cnt) = -enemyMoveValue(cnt)
+					enemyXV(cnt) = -enemyMoveValue(cnt, cond_num)
 				}else : if(enemyDirection(cnt) == ENEMY_RIGHT){
-					enemyXV(cnt) = enemyMoveValue(cnt)
+					enemyXV(cnt) = enemyMoveValue(cnt, cond_num)
 				}
-				//gravity
+				enemyYV(cnt) += grabityA
+			}else : if(enemyMoveType(cnt, cond_num) == ENEMY_DONT_MOVE){
 				enemyYV(cnt) += grabityA
 			}
 

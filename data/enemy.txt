@@ -1,13 +1,13 @@
 name : echigo
 hp : 10
-move : proceed
-movevalue : 10
 width : 30
 height : 30
+move : proceed(1.0) in default
+action : return in frontwall
 ---
 name : hanako
 hp : 2
-move : jump
-movevalue : 2.0
+move : proceed(1.0) in default
+action : jump(1.0) in frontwall
 width : 40
 height : 40

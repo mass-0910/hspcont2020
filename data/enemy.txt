@@ -1,13 +1,15 @@
+#ID:0
 name : echigo
 hp : 10
 width : 30
 height : 30
 move : proceed(1.0) in default
-action : return in frontwall
+action : jump(10.0) in frontwall(30)
 ---
+#ID:1
 name : hanako
 hp : 2
-move : proceed(1.0) in default
-action : jump(1.0) in frontwall
+move : proceed(2.0) in default
+action : return in frontwall
 width : 40
 height : 40

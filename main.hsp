@@ -20,7 +20,9 @@
 //enemy max count
 #define ENEMY_COUNT_MAX 16
 //enemy action count max
-#define ENEMYACTION_COUNT_MAX 8
+#define ENEMYACTION_COUNT_MAX 3
+#define ENEMYCOND_COUNT_MAX 8
+#define ENEMYACTIONSAMETIME_COUNT_MAX 5
 //enemy direction value
 #define ENEMY_LEFT  -1
 #define ENEMY_RIGHT 1
@@ -30,18 +32,21 @@
 #define ENEMY_MOVE_PROCEED 1
 
 //enemy action id
-#define ENEMY_ACTION_JUMP 1
-#define ENEMY_ACTION_RETURN 2
+#define ENEMY_ACTION_JUMP         1
+#define ENEMY_ACTION_RETURN       2
 #define ENEMY_ACTION_TURNTOPLAYER 3
+#define ENEMY_ACTION_SETSTATE     4
+#define ENEMY_ACTION_ADDSTATE     5
 
 //enemy condition id
-#define ENEMY_COND_DEFAULT   1
-#define ENEMY_COND_FRONTWALL 2
+#define ENEMY_COND_DEFAULT    1
+#define ENEMY_COND_FRONTWALL  2
+#define ENEMY_COND_MATCHSTATE 3
 
 dim chip, STAGE_X, STAGE_Y
 
 //enemy attribute valiables
-dim enemyIsUsed, ENEMY_COUNT_MAX
+dim enemyIsUsed,ENEMY_COUNT_MAX
 ddim enemyX, ENEMY_COUNT_MAX
 ddim enemyY, ENEMY_COUNT_MAX
 ddim enemyOriginX, ENEMY_COUNT_MAX
@@ -54,15 +59,16 @@ dim enemyID, ENEMY_COUNT_MAX
 dim enemyImageHandle, ENEMY_COUNT_MAX
 dim enemyIsAlive, ENEMY_COUNT_MAX
 dim enemyHP, ENEMY_COUNT_MAX
+dim enemyState, ENEMY_COUNT_MAX
 dim enemyDirection, ENEMY_COUNT_MAX
-ddim enemyMoveValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
-dim enemyMoveType, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
-dim enemyMoveTypeCondition, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
-ddim enemyMoveTypeConditionValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
-dim enemyActionType, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
-dim enemyActionCondition, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
-ddim enemyActionValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
-ddim enemyActionConditionValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX
+ddim enemyMoveValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYACTIONSAMETIME_COUNT_MAX
+dim enemyMoveType, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYACTIONSAMETIME_COUNT_MAX
+dim enemyMoveTypeCondition, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYCOND_COUNT_MAX
+ddim enemyMoveTypeConditionValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYCOND_COUNT_MAX
+dim enemyActionType, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYACTIONSAMETIME_COUNT_MAX
+dim enemyActionCondition, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYCOND_COUNT_MAX
+ddim enemyActionValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYACTIONSAMETIME_COUNT_MAX
+ddim enemyActionConditionValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYCOND_COUNT_MAX
 
 enemyCount = 0
 
@@ -133,59 +139,92 @@ goto *init
 	cond_num = 0
 	default_index = -1
 	repeat ENEMYACTION_COUNT_MAX
-		if(typeCondition(chara_index, cnt) == ENEMY_COND_DEFAULT){
-			default_index = cnt
-		}else : if(typeCondition(chara_index, cnt) == ENEMY_COND_FRONTWALL){
-			pos chara_index * 100, 100
-			mes typeCondition(chara_index, cnt)
-			x = int(enemyX(chara_index) + (enemyWidth(chara_index) / 2 + typeConditionValue(chara_index, cnt) + 1.0) * enemyDirection(chara_index)) / CHIPSIZE
-			y = int(enemyY(chara_index)) / CHIPSIZE
-			if(x >= 0 && x < STAGE_X && y >= 0 && y < STAGE_Y){
-				// boxf x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY, (x + 1) * CHIPSIZE - cameraX, (y + 1) * CHIPSIZE - cameraY 
-				if(chip(x, y) > 0){
-					if(chipType(chip(x, y) - 1) == 0){
-						cond_num = cnt
-						break
+		ccnt__ = cnt
+		if(typeCondition(chara_index, cnt, 0) != 0){
+			match = TRUE
+		}else{
+			match = FALSE
+		}
+		repeat ENEMYCOND_COUNT_MAX
+			mes "cnt:" + cnt
+			mes "type_cond:" + typeCondition(chara_index, ccnt__, cnt)
+			mes "default:" + default_index
+			if(typeCondition(chara_index, ccnt__, cnt) == ENEMY_COND_DEFAULT){
+				match = FALSE
+				default_index = ccnt__
+				break
+			}else : if(typeCondition(chara_index, ccnt__, cnt) == ENEMY_COND_FRONTWALL){
+				x = int(enemyX(chara_index) + (enemyWidth(chara_index) / 2 + typeConditionValue(chara_index, ccnt__, cnt) + 1.0) * enemyDirection(chara_index)) / CHIPSIZE
+				y = int(enemyY(chara_index)) / CHIPSIZE
+				if(x >= 0 && x < STAGE_X && y >= 0 && y < STAGE_Y){
+					// boxf x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY, (x + 1) * CHIPSIZE - cameraX, (y + 1) * CHIPSIZE - cameraY 
+					if(chip(x, y) > 0){
+						if(chipType(chip(x, y) - 1) == 0){
+							mes "frontwall"
+							continue
+						}
 					}
 				}
+			}else : if(typeCondition(chara_index, ccnt__, cnt) == ENEMY_COND_MATCHSTATE){
+				if(enemyState(chara_index) == int(typeConditionValue(chara_index, ccnt__, cnt))){
+					continue
+				}
+			}else : if(typeCondition(chara_index, ccnt__, cnt) == 0){
+				break
 			}
-		}else : if(typeCondition(chara_index, cnt) == 0 || cnt == ENEMYACTION_COUNT_MAX - 1){
+			match = FALSE
+			break
+		loop
+		if(match){
+			mes "match"
+			cond_num = cnt
+			break
+		}
+		if(cnt == ENEMYACTION_COUNT_MAX - 1){
 			cond_num = default_index
 			break
 		}
 	loop
 	return cond_num
 
-#deffunc setEnemyAttrValue var moveType, var moveTypeCondition, var moveValue, var moveTypeConditionValue, str attr, local namevalue, local name, local value, local condition
+#deffunc setEnemyAttrValue int chara_index_, int condition_index_, array moveType, array moveTypeCondition, array moveValue, array moveTypeConditionValue, str attr, local namevalue, local name, local value, local condition
 	// name(value) in condition
 	attr_valiable = attr
 	namevalue = ""
 	name = ""
 	value = ""
 	condition = ""
-	split attr_valiable, "in", namevalue, condition
-	split namevalue, "(", name, value
-	value = strtrim(value)
-	value = strtrim(value, 0, ')')
-	name = strtrim(name)
-	condition = strtrim(condition)
-	mes "name : " + name
-	mes "value : " + value
-	mes "cond : \"" + condition + "\""
-	switch name
-		//move
-		case "stop" : moveType = ENEMY_DONT_MOVE : swbreak
-		case "proceed" : moveType = ENEMY_MOVE_PROCEED : swbreak
-		//action
-		case "jump" : moveType = ENEMY_ACTION_JUMP : swbreak
-		case "return" : moveType = ENEMY_ACTION_RETURN : swbreak
-		case "turn_to_player" : moveType = ENEMY_ACTION_TURNTOPLAYER : swbreak
-		default : moveType = ENEMY_DONT_MOVE : swbreak
-	swend
-	setEnemyConditionAttrValue moveTypeCondition, moveTypeConditionValue, condition
-	if(moveType != ENEMY_DONT_MOVE){
-		moveValue = double(value)
-	}
+	split attr_valiable, "in", namevalues, condition
+	split namevalues, ",", namevalue
+	repeat stat
+		split namevalue(cnt), "(", name, value
+		value = strtrim(value)
+		value = strtrim(value, 0, ')')
+		name = strtrim(name)
+		condition = strtrim(condition)
+		mes "name : " + name
+		mes "value : " + value
+		mes "cond : \"" + condition + "\""
+		switch name
+			//move
+			case "stop" : moveType(chara_index_, condition_index_, cnt) = ENEMY_DONT_MOVE : swbreak
+			case "proceed" : moveType(chara_index_, condition_index_, cnt) = ENEMY_MOVE_PROCEED : swbreak
+			//action
+			case "jump" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_JUMP : swbreak
+			case "return" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_RETURN : swbreak
+			case "turn_to_player" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TURNTOPLAYER : swbreak
+			case "setstate" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_SETSTATE : swbreak
+			case "addstate" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_ADDSTATE : swbreak
+			default : moveType(chara_index_, condition_index_, cnt) = ENEMY_DONT_MOVE : swbreak
+		swend
+		if(moveType(chara_index_, condition_index_, cnt) != ENEMY_DONT_MOVE){
+			moveValue(chara_index_, condition_index_, cnt) = double(value)
+		}
+	loop
+	split condition, "and", tmp_cond
+	repeat stat
+		setEnemyConditionAttrValue moveTypeCondition(chara_index_, condition_index_, cnt), moveTypeConditionValue(chara_index_, condition_index_, cnt), strtrim(tmp_cond(cnt))
+	loop
 	return
 
 #deffunc setEnemyConditionAttrValue var moveCond, var moveCondValue, str avalue, local namevalue, local name, local value
@@ -202,6 +241,7 @@ goto *init
 	switch name
 		case "default" : moveCond = ENEMY_COND_DEFAULT : swbreak
 		case "frontwall" : moveCond = ENEMY_COND_FRONTWALL : swbreak
+		case "stateis" : moveCond = ENEMY_COND_MATCHSTATE : swbreak
 		default : moveCond = 0 : swbreak
 	swend
 	mes "moveCond = " + moveCond
@@ -231,23 +271,22 @@ goto *init
 			ccnt_ = cnt
 			mes "loop start"
 			repeat
-				mes "cnt" + cnt
 				attrvalue = getAttributeString(enemyNote, ID, "move", cnt)
 				mes "attrvalue = " + attrvalue
 				if(attrvalue == "null") : break
-				setEnemyAttrValue enemyMoveType(ccnt_, cnt), enemyMoveTypeCondition(ccnt_, cnt), enemyMoveValue(ccnt_, cnt), enemyMoveTypeConditionValue(ccnt_, cnt), attrvalue
-				mes "result : " + str(enemyMoveType(ccnt_, cnt)) + " " + str(enemyMoveTypeCondition(ccnt_, cnt)) + " " + str(enemyMoveValue(ccnt_, cnt)) + " " + str(enemyMoveTypeConditionValue(ccnt_, cnt))
+				setEnemyAttrValue ccnt_, cnt, enemyMoveType, enemyMoveTypeCondition, enemyMoveValue, enemyMoveTypeConditionValue, attrvalue
+				// mes "result : " + str(enemyMoveType(ccnt_, cnt)) + " " + str(enemyMoveTypeCondition(ccnt_, cccnt, cnt)) + " " + str(enemyMoveValue(ccnt_, cccnt, cnt)) + " " + str(enemyMoveTypeConditionValue(ccnt_, cccnt, cnt))
 				// await 1
 			loop
 			repeat
 				attrvalue = getAttributeString(enemyNote, ID, "action", cnt)
+				mes "attrvalue = " + attrvalue
 				if(attrvalue == "null") : break
-				setEnemyAttrValue enemyActionType(ccnt_, cnt), enemyActionCondition(ccnt_, cnt), enemyActionValue(ccnt_, cnt), enemyActionConditionValue(ccnt_, cnt), attrvalue
-				mes enemyActionCondition(ccnt_, cnt)
-				mes "result : " + str(enemyActionType(ccnt_, cnt)) + " " + str(enemyActionCondition(ccnt_, cnt)) + " " + str(enemyActionValue(ccnt_, cnt)) + " " + str(enemyActionConditionValue(ccnt_, cnt))
+				setEnemyAttrValue ccnt_, cnt, enemyActionType, enemyActionCondition, enemyActionValue, enemyActionConditionValue, attrvalue
+				// mes "result : " + str(enemyActionType(ccnt_, cccnt, cnt)) + " " + str(enemyActionCondition(ccnt_, cccnt, cnt)) + " " + str(enemyActionValue(ccnt_, cccnt, cnt)) + " " + str(enemyActionConditionValue(ccnt_, cccnt, cnt))
 			loop
-			// redraw 1
-			// stop
+			; // redraw 1
+			; // stop
 			enemyDirection(cnt) = ENEMY_LEFT
 			enemyCount++
 			break
@@ -258,6 +297,8 @@ goto *init
 #deffunc enemyDespawn int cnt_index
 	enemyX(cnt_index) = enemyOriginX(cnt_index)
 	enemyY(cnt_index) = enemyOriginY(cnt_index)
+	enemyState(cnt_index) = 0
+	enemyDirection(cnt_index) = LEFT
 	enemyIsAlive(cnt_index) = FALSE
 	return
 
@@ -594,44 +635,69 @@ loop
 	//enemy action
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
+			pos cnt * 100, 0
+			mes "state:" + enemyState(cnt)
+			mes "[action]"
 			cond_num = judgeCondition(cnt, enemyActionCondition, enemyActionConditionValue)
-			pos cnt * 100, 120
-			mes "cond_num = " + cond_num
+			mes "result:" + cond_num
 			if(cond_num == -1) : continue
-			if(enemyActionType(cnt, cond_num) == ENEMY_ACTION_JUMP){
-				x = int(enemyX(cnt) / CHIPSIZE)
-				y = int((enemyY(cnt) + enemyHeight(cnt) / 2 + 1) / CHIPSIZE)
-				if(x >= 0 && x < STAGE_X && y >= 0 && y < STAGE_Y){
-				// boxf x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY, (x + 1) * CHIPSIZE - cameraX, (y + 1) * CHIPSIZE - cameraY 
-					if(chip(x, y) > 0){
-						if(chipType(chip(x, y) - 1) == 0){
-							enemyYV(cnt) = -enemyActionValue(cnt, cond_num)
+			ccnt = cnt
+			repeat ENEMYACTIONSAMETIME_COUNT_MAX
+				if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_JUMP){
+					x = int(enemyX(ccnt) / CHIPSIZE)
+					y = int((enemyY(ccnt) + enemyHeight(ccnt) / 2 + 1) / CHIPSIZE)
+					if(x >= 0 && x < STAGE_X && y >= 0 && y < STAGE_Y){
+					// boxf x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY, (x + 1) * CHIPSIZE - cameraX, (y + 1) * CHIPSIZE - cameraY 
+						if(chip(x, y) > 0){
+							if(chipType(chip(x, y) - 1) == 0){
+								pos enemyX(ccnt) - cameraX, enemyY(ccnt) - cameraY
+								mes "JUMP"
+								enemyYV(ccnt) = -enemyActionValue(ccnt, cond_num, cnt)
+								mes "aaaa"
+								mes "val:" + enemyActionValue(ccnt, cond_num, cnt)
+							}
 						}
 					}
+				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_RETURN){
+					enemyDirection(ccnt) *= -1
+				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_SETSTATE){
+					enemyState(ccnt) = int(enemyActionValue(ccnt, cond_num, cnt))
+				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_ADDSTATE){
+					enemyState(ccnt) += int(enemyActionValue(ccnt, cond_num, cnt))
+				}else{
+					break
 				}
-			}else : if(enemyActionType(cnt, cond_num) == ENEMY_ACTION_RETURN){
-				enemyDirection(cnt) *= -1
-			}else : 
+			loop
 		}
 	loop
 
 	//enemy move
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
+			pos cnt * 100, 200
+			mes "[move]"
 			cond_num = judgeCondition(cnt, enemyMoveTypeCondition, enemyMoveTypeConditionValue)
-			pos cnt * 100, 0
-			mes enemyMoveType(cnt, cond_num)
-
-			if(enemyMoveType(cnt, cond_num) == ENEMY_MOVE_PROCEED){
-				if(enemyDirection(cnt) == ENEMY_LEFT){
-					enemyXV(cnt) = -enemyMoveValue(cnt, cond_num)
-				}else : if(enemyDirection(cnt) == ENEMY_RIGHT){
-					enemyXV(cnt) = enemyMoveValue(cnt, cond_num)
+			mes "result:" + cond_num
+			// pos cnt * 100, 0
+			// mes enemyMoveType(cnt, cond_num)
+			if(cond_num == -1) : continue
+			ccnt = cnt
+			repeat ENEMYACTIONSAMETIME_COUNT_MAX
+				if(enemyMoveType(ccnt, cond_num, cnt) == ENEMY_MOVE_PROCEED){
+					if(enemyDirection(ccnt) == ENEMY_LEFT){
+						enemyXV(ccnt) = -enemyMoveValue(ccnt, cond_num, cnt)
+					}else : if(enemyDirection(ccnt) == ENEMY_RIGHT){
+						enemyXV(ccnt) = enemyMoveValue(ccnt, cond_num, cnt)
+					}
+					enemyYV(ccnt) += grabityA
+				}else : if(enemyMoveType(ccnt, cond_num, cnt) == ENEMY_DONT_MOVE){
+					enemyYV(ccnt) += grabityA
+				}else{
+					break
 				}
-				enemyYV(cnt) += grabityA
-			}else : if(enemyMoveType(cnt, cond_num) == ENEMY_DONT_MOVE){
-				enemyYV(cnt) += grabityA
-			}
+				pos enemyX(ccnt) - cameraX, enemyY(ccnt) - cameraY + 30
+				mes enemyYV(ccnt)
+			loop
 
 			tmp = 0
 			collide enemyX(cnt), enemyY(cnt), enemyXV(cnt), enemyYV(cnt), tmp, enemyWidth(cnt), enemyHeight(cnt), "enemy"

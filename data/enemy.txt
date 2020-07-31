@@ -4,7 +4,8 @@ hp : 10
 width : 30
 height : 30
 move : proceed(1.0) in default
-action : jump(10.0) in frontwall(30)
+action : jump(10.0), addstate(1) in frontwall(30) and stateis(0)
+action : return in frontwall and stateis(1)
 ---
 #ID:1
 name : hanako

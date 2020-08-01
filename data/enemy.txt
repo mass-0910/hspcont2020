@@ -4,8 +4,11 @@ hp : 10
 width : 30
 height : 30
 move : proceed(1.0) in default
-action : jump(10.0), addstate(1) in frontwall(30) and stateis(0)
-action : return, addstate(1) in frontwall
+action : jump(10.0), setstate(1) in frontwall(30) and stateis(0)
+action : timerstart, setstate(2) in stateis(1)
+action : return in frontwall and stateis(2)
+action : timerreset in timerthan(50)
+action : jump(7.0) in onground and stateis(2)
 ---
 #ID:1
 name : hanako

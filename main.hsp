@@ -298,7 +298,7 @@ goto *init
 	enemyX(cnt_index) = enemyOriginX(cnt_index)
 	enemyY(cnt_index) = enemyOriginY(cnt_index)
 	enemyState(cnt_index) = 0
-	enemyDirection(cnt_index) = LEFT
+	enemyDirection(cnt_index) = ENEMY_LEFT
 	enemyIsAlive(cnt_index) = FALSE
 	return
 
@@ -696,6 +696,7 @@ loop
 					break
 				}
 				pos enemyX(ccnt) - cameraX, enemyY(ccnt) - cameraY + 30
+				mes enemyXV(ccnt)
 				mes enemyYV(ccnt)
 			loop
 

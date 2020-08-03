@@ -239,13 +239,13 @@ goto *init
 	return cond_num
 
 #deffunc setEnemyAttrValue int chara_index_, int condition_index_, array moveType, array moveTypeCondition, array moveValue, array moveTypeConditionValue, str attr, local namevalue, local name, local value, local condition
-	// name(value) in condition
+	// name(value) when condition
 	attr_valiable = attr
 	namevalue = ""
 	name = ""
 	value = ""
 	condition = ""
-	split attr_valiable, "in", namevalues, condition
+	split attr_valiable, "when", namevalues, condition
 	split namevalues, ",", namevalue
 	repeat stat
 		split namevalue(cnt), "(", name, value
@@ -264,11 +264,11 @@ goto *init
 			case "jump" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_JUMP : swbreak
 			case "return" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_RETURN : swbreak
 			case "turn_to_player" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TURNTOPLAYER : swbreak
-			case "setstate" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_SETSTATE : swbreak
-			case "addstate" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_ADDSTATE : swbreak
-			case "timerstart" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERSTART : swbreak
-			case "timerstop" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERSTOP : swbreak
-			case "timerreset" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERRESET : swbreak
+			case "set_state" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_SETSTATE : swbreak
+			case "add_state" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_ADDSTATE : swbreak
+			case "timer_start" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERSTART : swbreak
+			case "timer_stop" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERSTOP : swbreak
+			case "timer_reset" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERRESET : swbreak
 			default : moveType(chara_index_, condition_index_, cnt) = ENEMY_DONT_MOVE : swbreak
 		swend
 		if(moveType(chara_index_, condition_index_, cnt) != ENEMY_DONT_MOVE){
@@ -294,15 +294,15 @@ goto *init
 	mes "value2 : " + value
 	switch name
 		case "default" : moveCond = ENEMY_COND_DEFAULT : swbreak
-		case "frontwall" : moveCond = ENEMY_COND_FRONTWALL : swbreak
-		case "stateis" : moveCond = ENEMY_COND_MATCHSTATE : swbreak
-		case "timeris" : moveCond = ENEMY_COND_TIMER : swbreak
-		case "timerthan" : moveCond = ENEMY_COND_TIMERTHAN : swbreak
-		case "inleftofplayer" : moveCond = ENEMY_COND_INLEFTOFPLAYER : swbreak
-		case "inrightofplayer" : moveCond = ENEMY_COND_INRIGHTOFPLAYER : swbreak
-		case "intopofplayer" : moveCond = ENEMY_COND_INTOPOFPLAYER : swbreak
-		case "inbottomofplayer" : moveCond = ENEMY_COND_INBOTTOMOFPLAYER : swbreak
-		case "onground" : moveCond = ENEMY_COND_ONGROUND : swbreak
+		case "front_wall" : moveCond = ENEMY_COND_FRONTWALL : swbreak
+		case "state_is" : moveCond = ENEMY_COND_MATCHSTATE : swbreak
+		case "timer_is" : moveCond = ENEMY_COND_TIMER : swbreak
+		case "timer_than" : moveCond = ENEMY_COND_TIMERTHAN : swbreak
+		case "in_left_of_player" : moveCond = ENEMY_COND_INLEFTOFPLAYER : swbreak
+		case "in_right_o_player" : moveCond = ENEMY_COND_INRIGHTOFPLAYER : swbreak
+		case "in_top_of_player" : moveCond = ENEMY_COND_INTOPOFPLAYER : swbreak
+		case "in_bottom_of_player" : moveCond = ENEMY_COND_INBOTTOMOFPLAYER : swbreak
+		case "on_ground" : moveCond = ENEMY_COND_ONGROUND : swbreak
 		default : moveCond = 0 : swbreak
 	swend
 	mes "moveCond = " + moveCond
@@ -707,6 +707,7 @@ loop
 			if(cond_num == -1) : continue
 			ccnt = cnt
 			repeat ENEMYACTIONSAMETIME_COUNT_MAX
+				mes "action:" + enemyActionType(ccnt, cond_num, cnt)
 				if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_JUMP){
 					x = int(enemyX(ccnt) / CHIPSIZE)
 					y = int((enemyY(ccnt) + enemyHeight(ccnt) / 2 + 1) / CHIPSIZE)

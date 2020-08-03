@@ -3,17 +3,17 @@ name : echigo
 hp : 10
 width : 30
 height : 30
-move : proceed(1.0) in default
-action : jump(10.0), setstate(1) in frontwall(30) and stateis(0)
-action : timerstart, setstate(2) in stateis(1)
-action : return in frontwall and stateis(2)
-action : timerreset in timerthan(50)
-action : jump(7.0) in onground and stateis(2)
+move : proceed(1.0) when default
+action : jump(10.0), set_state(1) when front_wall(30) and state_is(0)
+action : timer_start, set_state(2) when state_is(1)
+action : return when front_wall and state_is(2)
+action : timer_reset when timer_than(50)
+action : jump(7.0) when on_ground and state_is(2)
 ---
 #ID:1
 name : hanako
 hp : 2
-move : proceed(2.0) in default
-action : return in frontwall
+move : proceed(2.0) when default
+action : return when front_wall
 width : 40
 height : 40

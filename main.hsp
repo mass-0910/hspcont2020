@@ -26,20 +26,23 @@
 //enemy direction value
 #define ENEMY_LEFT  -1
 #define ENEMY_RIGHT 1
+//enemy bullet value
+#define ENEMY_BULLET_COUNT_MAX 10
 
 //enemy move id
 #define ENEMY_DONT_MOVE    -1
 #define ENEMY_MOVE_PROCEED 1
 
 //enemy action id
-#define ENEMY_ACTION_JUMP         1
-#define ENEMY_ACTION_RETURN       2
-#define ENEMY_ACTION_TURNTOPLAYER 3
-#define ENEMY_ACTION_SETSTATE     4
-#define ENEMY_ACTION_ADDSTATE     5
-#define ENEMY_ACTION_TIMERSTART   6
-#define ENEMY_ACTION_TIMERSTOP    7
-#define ENEMY_ACTION_TIMERRESET   8
+#define ENEMY_ACTION_JUMP          1
+#define ENEMY_ACTION_RETURN        2
+#define ENEMY_ACTION_TURNTOPLAYER  3
+#define ENEMY_ACTION_SETSTATE      4
+#define ENEMY_ACTION_ADDSTATE      5
+#define ENEMY_ACTION_TIMERSTART    6
+#define ENEMY_ACTION_TIMERSTOP     7
+#define ENEMY_ACTION_TIMERRESET    8
+#define ENEMY_ACTION_SHOOTTOPLAYER 9
 
 //enemy condition id
 #define ENEMY_COND_DEFAULT          1
@@ -52,6 +55,9 @@
 #define ENEMY_COND_INTOPOFPLAYER    8
 #define ENEMY_COND_INBOTTOMOFPLAYER 10
 #define ENEMY_COND_ONGROUND         11
+#define ENEMY_COND_FRONTHOLL        12
+
+#define ENEMY_BULLET_TYPE_PROCEED   0
 
 //enemy timer status
 #define ENEMY_TIMER_ON  1
@@ -85,6 +91,15 @@ dim enemyActionType, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYACTIONSAMETIME
 dim enemyActionCondition, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYCOND_COUNT_MAX
 ddim enemyActionValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYACTIONSAMETIME_COUNT_MAX
 ddim enemyActionConditionValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYCOND_COUNT_MAX
+dim enemyBulletImageID, ENEMY_COUNT_MAX
+dim enemyBulletIsAlive, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
+dim enemyBulletType, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
+dim enemyBulletWidth, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
+dim enemyBulletHeight, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
+ddim enemyBulletX, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
+ddim enemyBulletY, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
+ddim enemyBulletXV, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
+ddim enemyBulletYV, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
 
 enemyCount = 0
 
@@ -92,9 +107,21 @@ dmmini
 
 goto *init 
 
+#defcfunc inWall double objectX, double objectY
+	x = int(objectX / CHIPSIZE)
+	y = int(objectY / CHIPSIZE)
+	if(x < 0 || x >= STAGE_X || y < 0 || y >= STAGE_Y) : return FALSE
+	if(chip(x, y) == 0) : return FALSE
+	if(chipType(chip(x, y) - 1) == 0) : return TRUE
+	return FALSE
+
 //Hit decision instruction
 #deffunc collide  var objectX, var objectY, var objectXV, var objectYV, var jump, int objectWidth, int objectHeight, str objectType
 	jump = 0
+	xv = objectXV
+	yv = objectYV
+	tmp_x = objectX
+	tmp_y = objectY
 	repeat objectHeight / CHIPSIZE + 5
 		ccnt = cnt
 		repeat objectWidth / CHIPSIZE + 5
@@ -108,6 +135,28 @@ goto *init
 			//ignore through chip
 			if(chip(x, y) == 0) : continue
 
+			color 0, 255, 255
+			boxf x * CHIPSIZE - cameraX + 1, y * CHIPSIZE - cameraY + 1, (x+1) * CHIPSIZE - cameraX - 1, (y+1) * CHIPSIZE - cameraY - 1
+			color 0, 0, 0
+
+			hasOnBlock = FALSE
+			if(y - 1 > 0){
+				if(chip(x, y - 1) - 1 >= 0){
+					if(chipType(chip(x, y - 1) - 1) == 0){ //there is a block on this block
+						hasOnBlock = TRUE
+					}
+				}
+			}
+
+			hasUnderBlock = FALSE
+			if(y + 1 < STAGE_Y){
+				if(chip(x, y + 1) - 1 >= 0){
+					if(chipType(chip(x, y + 1) - 1) == 0){ //there is a block under this block
+						hasUnderBlock = TRUE
+					}
+				}
+			}
+
 			if(chipType(chip(x, y) - 1) == 0){ //chips that cannot pass through
 				//ride on the block
 				if(objectType == "player"){
@@ -118,37 +167,40 @@ goto *init
 				if((objectY + objectHeight / 2 <= y * CHIPSIZE + allowStep)){// before add speed
 					objectLeftlegIsInTheBlock = inRect(objectX + objectXV - objectWidth / 2, objectY + objectYV + objectHeight / 2, x * CHIPSIZE, y * CHIPSIZE, (x + 1) * CHIPSIZE, (y + 1) * CHIPSIZE, FALSE, TRUE)
 					objectRightlegIsInTheBlock = inRect(objectX + objectXV + objectWidth / 2, objectY + objectYV + objectHeight / 2, x * CHIPSIZE, y * CHIPSIZE, (x + 1) * CHIPSIZE, (y + 1) * CHIPSIZE, FALSE, TRUE)
-					if(objectLeftlegIsInTheBlock || objectRightlegIsInTheBlock){//after add speed
+					objectInTheBlock = absf(objectX + objectXV - x * CHIPSIZE - CHIPSIZE / 2) < (objectWidth + CHIPSIZE) / 2 && absf(objectY + objectYV - y * CHIPSIZE - CHIPSIZE / 2) < (objectHeight + CHIPSIZE) / 2
+					if(objectInTheBlock && hasOnBlock == FALSE){//after add speed
+						pos x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY
+						mes "ª"
 						jump = 1
-						objectY = double(y * CHIPSIZE) - double(objectHeight / 2)
-						objectYV = 0.0
+						tmp_y = double(y * CHIPSIZE) - double(objectHeight / 2) - 0.01
+						yv = 0.0
 					}
 				}else : if((objectY + objectHeight / 2 > y * CHIPSIZE)){// before add speed
 					if(abs(objectX + objectXV - (x * CHIPSIZE + CHIPSIZE / 2)) < objectWidth / 2 + CHIPSIZE / 2 && abs(objectY + objectYV - (y * CHIPSIZE + CHIPSIZE / 2)) < objectHeight / 2 + CHIPSIZE / 2){ //after add speed
-						hasUnderBlock = 0
-						if(y + 1 < STAGE_Y){
-							if(chip(x, y + 1) - 1 >= 0){
-								if(chipType(chip(x, y + 1) - 1) == 0){ //there is a block under this block
-									hasUnderBlock = 1
-								}
-							}
-						}
 						if(objectY - objectHeight / 2 <= (y + 1) * CHIPSIZE || hasUnderBlock){//from side
+							pos x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY
 							if(objectX < x * CHIPSIZE + CHIPSIZE / 2){
-								objectX = double(x * CHIPSIZE - objectWidth / 2)
+								mes "©"
+								tmp_x = double(x * CHIPSIZE - objectWidth / 2)
 							}else{
-								objectX = double((x + 1) * CHIPSIZE + objectWidth / 2)
+								mes "¨"
+								tmp_x = double((x + 1) * CHIPSIZE + objectWidth / 2)
 							}
-							objectXV = 0.0
+							xv = 0.0
 						}else{//from under
-							objectY = double((y + 1) * CHIPSIZE + objectHeight / 2)
-							objectYV = 1.0
+							mes "«"
+							tmp_y = double((y + 1) * CHIPSIZE + objectHeight / 2)
+							yv = 1.0
 						}
 					}
 				}
 			}
 		loop
 	loop
+	objectX = tmp_x
+	objectY = tmp_y
+	objectXV = xv
+	objectYV = yv
 	return
 
 #defcfunc judgeCondition int chara_index, array typeCondition, array typeConditionValue
@@ -220,6 +272,14 @@ goto *init
 						}
 					}
 				}
+			}else : if(typeCondition(chara_index, ccnt__, cnt) == ENEMY_COND_FRONTHOLL){
+				x = int((enemyX(chara_index) + typeConditionValue(chara_index, ccnt__, cnt) * enemyDirection(chara_index)) / CHIPSIZE)
+				y = int((enemyY(chara_index) + enemyHeight(chara_index) / 2 + 1) / CHIPSIZE)
+				if(x >= 0 && x < STAGE_X && y >= 0 && y < STAGE_Y){
+					if(chip(x, y) == 0){
+						continue
+					}
+				}
 			}else : if(typeCondition(chara_index, ccnt__, cnt) == 0){
 				break
 			}
@@ -237,6 +297,26 @@ goto *init
 		}
 	loop
 	return cond_num
+
+#deffunc shoot int chara_index, int typeOfBullet, double init_xv, double init_yv
+	repeat ENEMY_BULLET_COUNT_MAX
+		if(enemyBulletIsAlive(chara_index, cnt) == FALSE){
+			enemyBulletIsAlive(chara_index, cnt) = TRUE
+			enemyBulletType(chara_index, cnt) = typeOfBullet
+			enemyBulletX(chara_index, cnt) = enemyX(chara_index) + (enemyWidth(chara_index) / 2) * enemyDirection(chara_index)
+			enemyBulletY(chara_index, cnt) = enemyY(chara_index)
+			enemyBulletXV(chara_index, cnt) = init_xv
+			enemyBulletYV(chara_index, cnt) = init_yv
+			switch enemyBulletImageID(chara_index)
+				case 0
+					enemyBulletWidth(chara_index, cnt) = 4
+					enemyBulletHeight(chara_index, cnt) = 4
+					swbreak
+			swend
+			break
+		}
+	loop
+	return
 
 #deffunc setEnemyAttrValue int chara_index_, int condition_index_, array moveType, array moveTypeCondition, array moveValue, array moveTypeConditionValue, str attr, local namevalue, local name, local value, local condition
 	// name(value) when condition
@@ -269,6 +349,7 @@ goto *init
 			case "timer_start" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERSTART : swbreak
 			case "timer_stop" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERSTOP : swbreak
 			case "timer_reset" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERRESET : swbreak
+			case "shoot_to_player" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_SHOOTTOPLAYER : swbreak
 			default : moveType(chara_index_, condition_index_, cnt) = ENEMY_DONT_MOVE : swbreak
 		swend
 		if(moveType(chara_index_, condition_index_, cnt) != ENEMY_DONT_MOVE){
@@ -303,6 +384,7 @@ goto *init
 		case "in_top_of_player" : moveCond = ENEMY_COND_INTOPOFPLAYER : swbreak
 		case "in_bottom_of_player" : moveCond = ENEMY_COND_INBOTTOMOFPLAYER : swbreak
 		case "on_ground" : moveCond = ENEMY_COND_ONGROUND : swbreak
+		case "front_holl" : moveCond = ENEMY_COND_FRONTHOLL : swbreak
 		default : moveCond = 0 : swbreak
 	swend
 	mes "moveCond = " + moveCond
@@ -735,6 +817,11 @@ loop
 					enemyTimerState(ccnt) = ENEMY_TIMER_OFF
 				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_TIMERRESET){
 					enemyTimer(ccnt) = 0
+				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_SHOOTTOPLAYER){
+					vector_x = playerX - (enemyX(ccnt) + (enemyWidth(ccnt) / 2) * double(enemyDirection(ccnt)))
+					vector_y = playerY - enemyY(ccnt)
+					vector_size = sqrt(vector_x * vector_x + vector_y * vector_y)
+					shoot ccnt, ENEMY_BULLET_TYPE_PROCEED, (vector_x / vector_size) * enemyActionValue(ccnt, cond_num, cnt), (vector_y / vector_size) * enemyActionValue(ccnt, cond_num, cnt)
 				}else{
 					break
 				}
@@ -787,6 +874,55 @@ loop
 				enemyTimer(cnt)++
 			}
 		}
+	loop
+
+	//draw enemy bullet
+	repeat ENEMY_COUNT_MAX
+		ccnt = cnt
+		repeat ENEMY_BULLET_COUNT_MAX
+			if(enemyBulletIsAlive(ccnt, cnt)){
+				boxf enemyBulletX(ccnt, cnt) - 2 - cameraX, enemyBulletY(ccnt, cnt) - 2 - cameraY, enemyBulletX(ccnt, cnt) + 2 - cameraX, enemyBulletY(ccnt, cnt) + 2 - cameraY
+			}
+		loop
+	loop
+
+	//move enemy bullet
+	repeat ENEMY_COUNT_MAX
+		ccnt = cnt
+		repeat ENEMY_BULLET_COUNT_MAX
+			if(enemyBulletIsAlive(ccnt, cnt)){
+				switch enemyBulletType(ccnt, cnt)
+					case ENEMY_BULLET_TYPE_PROCEED
+						enemyBulletX(ccnt, cnt) += enemyBulletXV(ccnt, cnt)
+						enemyBulletY(ccnt, cnt) += enemyBulletYV(ccnt, cnt)
+						swbreak
+				swend
+			}
+		loop
+	loop
+
+	//delete enemy bullet
+	repeat ENEMY_COUNT_MAX
+		ccnt = cnt
+		repeat ENEMY_BULLET_COUNT_MAX
+			if(enemyBulletIsAlive(ccnt, cnt)){
+				if(inRect(enemyBulletX(ccnt, cnt), enemyBulletY(ccnt, cnt), cameraX - 300, cameraY - 300, cameraX + SCREEN_X + 300, cameraY + SCREEN_Y + 300, TRUE, TRUE) == FALSE){
+					enemyBulletIsAlive(ccnt, cnt) = FALSE
+				}
+			}
+		loop
+	loop
+
+	//hitting to wall of enemy bullet
+	repeat ENEMY_COUNT_MAX
+		ccnt = cnt
+		repeat ENEMY_BULLET_COUNT_MAX
+			if(enemyBulletIsAlive(ccnt, cnt)){
+				if(inWall(enemyBulletX(ccnt, cnt), enemyBulletY(ccnt, cnt))){
+					enemyBulletIsAlive(ccnt, cnt) = FALSE
+				}
+			}
+		loop
 	loop
 
 	return

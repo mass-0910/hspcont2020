@@ -18,7 +18,7 @@
 //enemy number on map file
 #define ENEMY_CHIP_START_NUMBER 50
 //enemy max count
-#define ENEMY_COUNT_MAX 16
+#define ENEMY_COUNT_MAX 64
 //enemy action count max
 #define ENEMYACTION_COUNT_MAX 8
 #define ENEMYCOND_COUNT_MAX 8
@@ -63,6 +63,27 @@
 #define ENEMY_TIMER_ON  1
 #define ENEMY_TIMER_OFF 2
 
+//event number on map file
+
+//event max count
+#define EVENT_CHIP_START_NUMBER 100
+#define EVENT_COUNT_MAX 64
+#define EVENT_OPERATION_MAX 64
+#define EVENT_OPERATION_ARG_MAX 8
+
+//event image width and height
+#define EVENT_WIDTH 30
+#define EVENT_HEIGHT 60
+
+//event trigger type
+#define EVENT_TRIGGER_BUTTON 1
+
+//event operation type
+#define EVENT_OPERATION_MESSAGE 1
+
+//fade buffer handler number
+#define FADE_BUFFER_HANDLER 10
+
 dim chip, STAGE_X, STAGE_Y
 
 //enemy attribute valiables
@@ -101,7 +122,22 @@ ddim enemyBulletY, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
 ddim enemyBulletXV, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
 ddim enemyBulletYV, ENEMY_COUNT_MAX, ENEMY_BULLET_COUNT_MAX
 
+//event attribute valiables
+eventExecuteFlag = FALSE
+eventExecuteID = 0
+eventProgramCounter = 0
+dim eventIsUsed, EVENT_COUNT_MAX
+ddim eventX, EVENT_COUNT_MAX
+ddim eventY, EVENT_COUNT_MAX
+dim eventImageHandle, EVENT_COUNT_MAX
+dim eventTriggerType, EVENT_COUNT_MAX
+dim eventState, EVENT_COUNT_MAX
+dim eventOperation, EVENT_COUNT_MAX, EVENT_OPERATION_MAX
+sdim eventOperationArgs, 8, EVENT_COUNT_MAX, EVENT_OPERATION_MAX, EVENT_OPERATION_ARG_MAX
+
 enemyCount = 0
+
+eventCount = 0
 
 dmmini
 
@@ -437,7 +473,7 @@ goto *init
 			break
 		}
 	loop
-	return 
+	return
 
 #deffunc enemyDespawn int cnt_index
 	enemyX(cnt_index) = enemyOriginX(cnt_index)
@@ -447,15 +483,65 @@ goto *init
 	enemyIsAlive(cnt_index) = FALSE
 	return
 
-#deffunc get_input
+#deffunc eventSpawn int pointX, int pointY, int ID
+	repeat EVENT_COUNT_MAX
+		if(eventIsUsed(cnt) == FALSE){
+			eventIsUsed(cnt) = TRUE
+			eventX(cnt) = double(pointX)
+			eventY(cnt) = double(pointY)
+			eventImageHandle(cnt) = int(getAttributeString(eventNote, ID, "image", 0))
+			switch getAttributeString(eventNote, ID, "trigger", 0)
+				case "button" : eventTriggerType(cnt) = EVENT_TRIGGER_BUTTON : swbreak
+				default : eventTriggerType(cnt) = 0 : swbreak
+			swend
+			ccnt_ = cnt
+			repeat EVENT_OPERATION_MAX
+				attrstring = getAttributeString(eventNote, ID, "program", cnt)
+				if(attrstring == "null") : break
+				split attrstring, "<", operand, arguments
+				switch strtrim(operand)
+					case "mes" : eventOperation(ccnt_, cnt) = EVENT_OPERATION_MESSAGE : swbreak
+				swend
+				split arguments, ",", arg_list
+				cccnt_ = cnt
+				repeat stat
+					eventOperationArgs(ccnt_, cccnt_, cnt) = strtrim(arg_list(cnt))
+				loop
+			loop
+			eventCount++
+			break
+		}
+	loop
+
+#deffunc messagePeek
+	eventMessagePeekBuffer = strmid(eventOperationArgs(eventExecuteID, eventProgramCounter, 0), eventMessagePeekIndex, 1)
+	eventMessagePeekIndex++
+	if(eventMessagePeekBuffer == ";"){
+		eventMessageBuffer += "\n"
+		eventMessageIndentionInterval = 0
+	}else{
+		eventMessageBuffer += eventMessagePeekBuffer
+		if(eventMessagePeekBuffer != "") : eventMessageIndentionInterval++
+	}
+	if(eventMessageIndentionInterval > 20){
+		eventMessageBuffer += "\n"
+		eventMessageIndentionInterval = 0
+	}
+	return
+
+#deffunc getInput
 	joyGetPosEx joypad
 	left = 0
 	right = 0
+	up = 0
+	down = 0
 	x = 0
 	z = 0
 	if(ginfo(2) != -1){
 		getkey left, 37
 		getkey right, 39
+		getkey up, 38
+		getkey down, 40
 		getkey z, 'Z'
 		getkey x, 'X'
 	}
@@ -466,12 +552,33 @@ goto *init
 		if(joypad(2) > 32000 + 16000){
 			right = 1
 		}
+		if(joypad(3) < 32000 - 16000){
+			up = 1
+		}
+		if(joypad(3) > 32000 + 16000){
+			down = 1
+		}
 		if(joypad(8) & 1){
 			z = 1
 		}
 		if(joypad(8) & 4){
 			x = 1
 		}
+	}
+	return
+
+#deffunc getSystemInput
+	getkey tmp, 'Z'
+	if(tmp){
+		if(sys_z_trigger){
+			sys_z = TRUE
+			sys_z_trigger = FALSE
+		}else{
+			sys_z = FALSE
+		}
+	}else{
+		sys_z = FALSE
+		sys_z_trigger = TRUE
 	}
 	return
 
@@ -554,6 +661,11 @@ goto *init
 
 	playerJump = 0
 
+	fadeRate = 0.0
+
+	sys_z = FALSE
+	sys_z_trigger = FALSE
+
 	celload DIR_CUR + "\\data\\chip.png", 1
 	celdiv 1, CHIPSIZE, CHIPSIZE, 0, 0
 	gsel 1
@@ -577,8 +689,21 @@ goto *init
 	celload DIR_CUR + "\\data\\dash_page8.png", 4
 	celdiv 4, 40, 60, 0, 0
 
+	celload DIR_CUR + "\\data\\fukidashi.png", 5
+
+	enemyNote = ""
 	notesel enemyNote
 	noteload DIR_CUR + "\\data\\enemy.txt"
+
+	eventNote = ""
+	notesel eventNote
+	noteload DIR_CUR + "\\data\\event.txt"
+
+	//make fade buffer
+	buffer FADE_BUFFER_HANDLER, SCREEN_X, SCREEN_Y
+	color 1, 1, 1
+	boxf
+	gsel 0
 
 	gmode 2
 	
@@ -598,6 +723,10 @@ loop
 	return
 
 *game_init
+
+	//init valiables
+	enemyCount = 0
+	eventCount = 0
 
 	//load data of map
 	notesel notebuf
@@ -628,8 +757,12 @@ loop
 		repeat STAGE_X
 			getstr chipattr, line_buf, index, ',', 8
 			index += strsize
-			if(int(chipattr) >= ENEMY_CHIP_START_NUMBER){
+			// if(int(chipattr) == 100) : pos 0, 0 : mes "event" : redraw 1 : stop
+			if(int(chipattr) >= ENEMY_CHIP_START_NUMBER && int(chipattr) < EVENT_CHIP_START_NUMBER){
 				enemySpawn cnt * CHIPSIZE + CHIPSIZE / 2, ccnt * CHIPSIZE + CHIPSIZE / 2, int(chipattr) - ENEMY_CHIP_START_NUMBER
+				chip(cnt, ccnt) = 0
+			}else : if(int(chipattr) >= EVENT_CHIP_START_NUMBER){
+				eventSpawn cnt * CHIPSIZE + CHIPSIZE / 2, ccnt * CHIPSIZE + CHIPSIZE / 2, int(chipattr) - EVENT_CHIP_START_NUMBER
 				chip(cnt, ccnt) = 0
 			}else{
 				chip(cnt, ccnt) = int(chipattr)
@@ -689,7 +822,7 @@ loop
 	playerFrame++
 
 	//get button push state
-	get_input
+	getInput
 
 	//dash button
 	if(x){
@@ -783,6 +916,7 @@ loop
 			pos cnt * 100, 0
 			mes "state:" + enemyState(cnt)
 			mes "timer:" + enemyTimer(cnt)
+			mes "direction:" + enemyDirection(cnt)
 			mes "[action]"
 			cond_num = judgeCondition(cnt, enemyActionCondition, enemyActionConditionValue)
 			mes "result:" + cond_num
@@ -866,7 +1000,6 @@ loop
 			enemyY(cnt) += enemyYV(cnt)
 		}
 	loop
-
 	//enemy timer
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
@@ -924,5 +1057,95 @@ loop
 			}
 		loop
 	loop
+
+	pos 0, 0
+	mes eventCount
+
+	//event draw
+	repeat eventCount
+		pos eventX(cnt) - EVENT_WIDTH / 2 - cameraX, eventY(cnt) - EVENT_HEIGHT / 2 - cameraY
+		color 0, 255, 255
+		boxf eventX(cnt) - EVENT_WIDTH / 2 - cameraX, eventY(cnt) - EVENT_HEIGHT / 2 - cameraY, eventX(cnt) + EVENT_WIDTH / 2 - cameraX, eventY(cnt) + EVENT_HEIGHT / 2 - cameraY
+		color 0, 0, 0
+	loop
+
+	//event drop in grabity
+	repeat eventCount
+		tmp_yv = grabityA
+		tmp_xv = 0.0
+		tmp = 0
+		collide eventX(cnt), eventY(cnt), tmp_xv, tmp_yv, tmp, EVENT_WIDTH, EVENT_HEIGHT, "event"
+		pos eventX(cnt) - EVENT_WIDTH / 2 - cameraX, eventY(cnt) - EVENT_HEIGHT / 2 - cameraY
+		mes tmp_yv
+		mes eventY(cnt)
+		eventX(cnt) += tmp_xv
+		eventY(cnt) += tmp_yv
+	loop
+
+	//event trigger
+	if(eventExecuteFlag == FALSE){
+		repeat eventCount
+			switch eventTriggerType(cnt)
+				case EVENT_TRIGGER_BUTTON
+					if(absf(playerX - eventX(cnt)) < (PLAYER_WIDTH + EVENT_WIDTH) / 2 && absf(playerY - eventY(cnt)) < (PLAYER_HEIGHT + EVENT_HEIGHT) / 2){
+						if(up){
+							eventExecuteID = cnt
+							eventExecuteFlag = TRUE
+						}
+					}
+					swbreak
+			swend
+			if(eventExecuteFlag){
+
+				//init Event
+				eventProgramCounter = 0
+				fadeRate = 0.0
+
+				//init Message valiables
+				eventMessageBuffer = ""
+				eventMessagePeekIndex = 0
+				eventMessageIndentionInterval = 0
+
+				break
+			}
+		loop
+	}
+
+	//event execute
+	if(eventExecuteFlag){
+
+		//draw fade in event
+		pos 0, 0
+		gmode 3, 640, 480, int(fadeRate)
+		gcopy FADE_BUFFER_HANDLER
+		fadeRate += (150.0 - fadeRate) * 0.1
+		gmode 2
+
+		//execute each operations
+		switch eventOperation(eventExecuteID, eventProgramCounter)
+			case EVENT_OPERATION_MESSAGE
+				pos 0, 0
+				celput 5
+				messagePeek
+				pos 100,100
+				mes eventMessageBuffer
+				getSystemInput
+				if(sys_z && eventMessagePeekBuffer != ""){
+					repeat
+						messagePeek
+						if(eventMessagePeekBuffer == "") : break
+					loop
+				}else : if(sys_z && eventMessagePeekBuffer == ""){
+					eventMessageBuffer = ""
+					eventMessageIndentionInterval = 0
+					eventMessagePeekIndex = 0
+					eventProgramCounter++
+				}
+				swbreak
+			default
+				eventExecuteFlag = FALSE
+				swbreak
+		swend
+	}
 
 	return

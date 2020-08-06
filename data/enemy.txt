@@ -7,7 +7,7 @@ move : proceed(1.0) when default
 action : jump(10.0), set_state(1) when front_wall(30) and state_is(0)
 action : timer_start, set_state(2) when state_is(1)
 action : return when front_wall and state_is(2)
-action : timer_reset when timer_than(50)
+action : timer_reset , shoot_to_player(3.0) when timer_than(50)
 action : jump(7.0) when on_ground and state_is(2)
 ---
 #ID:1
@@ -15,5 +15,15 @@ name : hanako
 hp : 2
 move : proceed(2.0) when default
 action : return when front_wall
-width : 40
-height : 40
+action : timer_start, set_state(1) when state_is(0)
+action : shoot_to_player(5.0), timer_reset when timer_than(50) and state_is(1)
+width : 30
+height : 30
+---
+#ID:2
+name : kenji
+hp : 2
+move : proceed(2.0) when default
+action : return when front_holl(50)
+width : 30
+height : 30

@@ -12,9 +12,19 @@
 #define STAGE_Y 256
 //a chip width and height
 #define CHIPSIZE 32
+
 //player width and height
 #define PLAYER_WIDTH 30
 #define PLAYER_HEIGHT 60
+//player state number
+#define PLAYER_STATE_WALK   1
+#define PLAYER_STATE_ATTACK 2
+
+//player weapon number
+#define PLAYER_WEAPON_NONE  0
+#define PLAYER_WEAPON_SWORD 1
+#define PLAYER_WEAPON_GUN   2
+
 //enemy number on map file
 #define ENEMY_CHIP_START_NUMBER 50
 //enemy max count
@@ -43,6 +53,7 @@
 #define ENEMY_ACTION_TIMERSTOP     7
 #define ENEMY_ACTION_TIMERRESET    8
 #define ENEMY_ACTION_SHOOTTOPLAYER 9
+#define ENEMY_ACTION_SHOOTFRONT    10
 
 //enemy condition id
 #define ENEMY_COND_DEFAULT          1
@@ -63,6 +74,9 @@
 #define ENEMY_TIMER_ON  1
 #define ENEMY_TIMER_OFF 2
 
+//enemy buffer start
+#define ENEMY_BUFFER_START_NUM  30
+
 //event number on map file
 
 //event max count
@@ -71,10 +85,6 @@
 #define EVENT_OPERATION_MAX 64
 #define EVENT_OPERATION_ARG_MAX 8
 
-//event image width and height
-#define EVENT_WIDTH 30
-#define EVENT_HEIGHT 60
-
 //event trigger type
 #define EVENT_TRIGGER_BUTTON 1
 
@@ -82,9 +92,35 @@
 #define EVENT_OPERATION_MESSAGE 1
 
 //fade buffer handler number
-#define FADE_BUFFER_HANDLER 10
+#define BUFFER_HANDLE_FADE 10
+#define BUFFER_HANDLE_COMMENT 11
+
+//event buffer start
+#define EVENT_BUFFER_START_NUM  60
+
+#define WHITE_BUFFER_START 100
 
 dim chip, STAGE_X, STAGE_Y
+
+//player attribute valiables
+playerX = 100.0
+playerY = 100.0
+playerXV = 0.0
+playerYV = 0.0
+playerRound = 0.0
+playerState = PLAYER_STATE_WALK
+playerWeapon = PLAYER_WEAPON_NONE
+playerAttackTimer = 0
+//player attacking status
+playerAttackInDash = FALSE
+playerAttackInAir = FALSE
+playerAttackInCrouch = FALSE
+playerAttackingFlag = FALSE
+playerAttackingDamage = 0
+playerAttackingRectX1 = 0.0
+playerAttackingRectY1 = 0.0
+playerAttackingRectX2 = 0.0
+playerAttackingRectY2 = 0.0
 
 //enemy attribute valiables
 dim enemyIsUsed, ENEMY_COUNT_MAX
@@ -104,6 +140,9 @@ dim enemyState, ENEMY_COUNT_MAX
 dim enemyTimer, ENEMY_COUNT_MAX
 dim enemyTimerState, ENEMY_COUNT_MAX
 dim enemyDirection, ENEMY_COUNT_MAX
+dim enemyDamagedValue, ENEMY_COUNT_MAX
+dim enemyDamagedTimer, ENEMY_COUNT_MAX
+dim enemyDamagedDirection, ENEMY_COUNT_MAX
 ddim enemyMoveValue, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYACTIONSAMETIME_COUNT_MAX
 dim enemyMoveType, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYACTIONSAMETIME_COUNT_MAX
 dim enemyMoveTypeCondition, ENEMY_COUNT_MAX, ENEMYACTION_COUNT_MAX, ENEMYCOND_COUNT_MAX
@@ -129,11 +168,17 @@ eventProgramCounter = 0
 dim eventIsUsed, EVENT_COUNT_MAX
 ddim eventX, EVENT_COUNT_MAX
 ddim eventY, EVENT_COUNT_MAX
+ddim eventXV, EVENT_COUNT_MAX
+ddim eventYV, EVENT_COUNT_MAX
 dim eventImageHandle, EVENT_COUNT_MAX
+dim eventWidth, EVENT_COUNT_MAX
+dim eventHeight, EVENT_COUNT_MAX
 dim eventTriggerType, EVENT_COUNT_MAX
 dim eventState, EVENT_COUNT_MAX
 dim eventOperation, EVENT_COUNT_MAX, EVENT_OPERATION_MAX
 sdim eventOperationArgs, 8, EVENT_COUNT_MAX, EVENT_OPERATION_MAX, EVENT_OPERATION_ARG_MAX
+sdim eventComment, 8, EVENT_COUNT_MAX
+ddim eventCommentFadeRate, EVENT_COUNT_MAX
 
 enemyCount = 0
 
@@ -143,16 +188,61 @@ dmmini
 
 goto *init 
 
-#defcfunc inWall double objectX, double objectY
-	x = int(objectX / CHIPSIZE)
-	y = int(objectY / CHIPSIZE)
-	if(x < 0 || x >= STAGE_X || y < 0 || y >= STAGE_Y) : return FALSE
-	if(chip(x, y) == 0) : return FALSE
-	if(chipType(chip(x, y) - 1) == 0) : return TRUE
+#defcfunc isBlock double pointX, double pointY, local local_x, local local_y
+	local_x = int(pointX) / CHIPSIZE
+	local_y = int(pointY) / CHIPSIZE
+	if(local_x >= 0 && local_x < STAGE_X && local_y >= 0 && local_y < STAGE_Y){
+		if(chip(local_x, local_y) > 0){
+			if(chipType(chip(local_x, local_y) - 1) == 0){
+				return TRUE
+			}
+		}
+	}
 	return FALSE
 
+#defcfunc getBufferWidth int bufferHandle, local retval
+	beforeBufferHandle = ginfo(3)
+	gsel bufferHandle
+	retval = ginfo(12)
+	gsel beforeBufferHandle
+	return retval
+
+#defcfunc getBufferHeight int bufferHandle, local retval
+	beforeBufferHandle = ginfo(3)
+	gsel bufferHandle
+	retval = ginfo(13)
+	gsel beforeBufferHandle
+	return retval
+
+#defcfunc playerOnBlock
+	return isBlock(playerX, playerY + PLAYER_HEIGHT / 2 + 1) || isBlock(playerX + PLAYER_WIDTH / 2 - 1, playerY + PLAYER_HEIGHT / 2 + 1) || isBlock(playerX - PLAYER_WIDTH / 2 + 1, playerY + PLAYER_HEIGHT / 2 + 1)
+
+#deffunc celput_white_init int handle, int divnum
+	beforeBufferHandle = ginfo(3)
+	buffer handle + WHITE_BUFFER_START, 128, 128
+	color 0, 0, 0
+	boxf
+	pos 0, 0
+	if(divnum >= 0) : celput handle, divnum : else : celput handle
+	repeat 128
+		ccnt = cnt
+		repeat 128
+			pget cnt, ccnt
+			if(ginfo(16) != 0 || ginfo(17) != 0 || ginfo(18) != 0){
+				color 255, 255, 255
+				pset cnt, ccnt
+			}
+		loop
+	loop
+	gsel beforeBufferHandle
+	return
+
+#deffunc celput_white int handle
+	celput handle + WHITE_BUFFER_START
+	return
+
 //Hit decision instruction
-#deffunc collide  var objectX, var objectY, var objectXV, var objectYV, var jump, int objectWidth, int objectHeight, str objectType
+#deffunc collideObjectToBlock  var objectX, var objectY, var objectXV, var objectYV, var jump, int objectWidth, int objectHeight, str objectType
 	jump = 0
 	xv = objectXV
 	yv = objectYV
@@ -170,10 +260,6 @@ goto *init
 
 			//ignore through chip
 			if(chip(x, y) == 0) : continue
-
-			color 0, 255, 255
-			boxf x * CHIPSIZE - cameraX + 1, y * CHIPSIZE - cameraY + 1, (x+1) * CHIPSIZE - cameraX - 1, (y+1) * CHIPSIZE - cameraY - 1
-			color 0, 0, 0
 
 			hasOnBlock = FALSE
 			if(y - 1 > 0){
@@ -205,26 +291,20 @@ goto *init
 					objectRightlegIsInTheBlock = inRect(objectX + objectXV + objectWidth / 2, objectY + objectYV + objectHeight / 2, x * CHIPSIZE, y * CHIPSIZE, (x + 1) * CHIPSIZE, (y + 1) * CHIPSIZE, FALSE, TRUE)
 					objectInTheBlock = absf(objectX + objectXV - x * CHIPSIZE - CHIPSIZE / 2) < (objectWidth + CHIPSIZE) / 2 && absf(objectY + objectYV - y * CHIPSIZE - CHIPSIZE / 2) < (objectHeight + CHIPSIZE) / 2
 					if(objectInTheBlock && hasOnBlock == FALSE){//after add speed
-						pos x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY
-						mes "↑"
 						jump = 1
-						tmp_y = double(y * CHIPSIZE) - double(objectHeight / 2) - 0.01
+						tmp_y = double(y * CHIPSIZE) - double(objectHeight / 2)
 						yv = 0.0
 					}
 				}else : if((objectY + objectHeight / 2 > y * CHIPSIZE)){// before add speed
 					if(abs(objectX + objectXV - (x * CHIPSIZE + CHIPSIZE / 2)) < objectWidth / 2 + CHIPSIZE / 2 && abs(objectY + objectYV - (y * CHIPSIZE + CHIPSIZE / 2)) < objectHeight / 2 + CHIPSIZE / 2){ //after add speed
 						if(objectY - objectHeight / 2 <= (y + 1) * CHIPSIZE || hasUnderBlock){//from side
-							pos x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY
 							if(objectX < x * CHIPSIZE + CHIPSIZE / 2){
-								mes "←"
 								tmp_x = double(x * CHIPSIZE - objectWidth / 2)
 							}else{
-								mes "→"
 								tmp_x = double((x + 1) * CHIPSIZE + objectWidth / 2)
 							}
 							xv = 0.0
 						}else{//from under
-							mes "↓"
 							tmp_y = double((y + 1) * CHIPSIZE + objectHeight / 2)
 							yv = 1.0
 						}
@@ -238,6 +318,10 @@ goto *init
 	objectXV = xv
 	objectYV = yv
 	return
+
+#defcfunc collideObjectOnAnotherObject double object1X, double object1Y, int object1Width, int object1Height, double object2X, double object2Y, int object2Width, int object2Height
+	if(absf(object1X - object2X) < (object1Width + object2Width) / 2 && absf(object1Y - object2Y) < (object1Height + object2Height) / 2) : return TRUE
+	return FALSE
 
 #defcfunc judgeCondition int chara_index, array typeCondition, array typeConditionValue
 	cond_num = 0
@@ -385,7 +469,8 @@ goto *init
 			case "timer_start" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERSTART : swbreak
 			case "timer_stop" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERSTOP : swbreak
 			case "timer_reset" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_TIMERRESET : swbreak
-			case "shoot_to_player" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_SHOOTTOPLAYER : swbreak
+			case "shot_to_player" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_SHOOTTOPLAYER : swbreak
+			case "shot_front" : moveType(chara_index_, condition_index_, cnt) = ENEMY_ACTION_SHOOTFRONT : swbreak
 			default : moveType(chara_index_, condition_index_, cnt) = ENEMY_DONT_MOVE : swbreak
 		swend
 		if(moveType(chara_index_, condition_index_, cnt) != ENEMY_DONT_MOVE){
@@ -447,6 +532,7 @@ goto *init
 			enemyWidth(cnt) = int(getAttributeString(enemyNote, ID, "width", 0))
 			enemyHeight(cnt) = int(getAttributeString(enemyNote, ID, "height", 0))
 			enemyHP(cnt) = int(getAttributeString(enemyNote, ID, "hp", 0))
+			enemyImageHandle(cnt) = int(getAttributeString(enemyNote, ID, "image", 0))
 			ccnt_ = cnt
 			mes "loop start"
 			repeat
@@ -489,11 +575,41 @@ goto *init
 			eventIsUsed(cnt) = TRUE
 			eventX(cnt) = double(pointX)
 			eventY(cnt) = double(pointY)
+			eventXV(cnt) = 0.0
+			eventYV(cnt) = 0.0
 			eventImageHandle(cnt) = int(getAttributeString(eventNote, ID, "image", 0))
 			switch getAttributeString(eventNote, ID, "trigger", 0)
 				case "button" : eventTriggerType(cnt) = EVENT_TRIGGER_BUTTON : swbreak
 				default : eventTriggerType(cnt) = 0 : swbreak
 			swend
+			tmp_str = getAttributeString(eventNote, ID, "comment", 0)
+			if(tmp_str != "null"){
+				eventComment(cnt) = tmp_str
+			}
+			tmp_str = getAttributeString(eventNote, ID, "width", 0)
+			if(tmp_str != "null"){
+				eventWidth(cnt) = int(tmp_str)
+			}else{
+				if(eventImageHandle(cnt) != 0){
+					gsel eventImageHandle(cnt) + EVENT_BUFFER_START_NUM
+					eventWidth(cnt) = ginfo(12)
+					gsel 0
+				}else{
+					eventWidth(cnt) = 30
+				}
+			}
+			tmp_str = getAttributeString(eventNote, ID, "height", 0)
+			if(tmp_str != "null"){
+				eventHeight(cnt) = int(tmp_str)
+			}else{
+				if(eventImageHandle(cnt) != 0){
+					gsel eventImageHandle(cnt) + EVENT_BUFFER_START_NUM
+					eventHeight(cnt) = ginfo(13)
+					gsel 0
+				}else{
+					eventHeight(cnt) = 60
+				}
+			}
 			ccnt_ = cnt
 			repeat EVENT_OPERATION_MAX
 				attrstring = getAttributeString(eventNote, ID, "program", cnt)
@@ -513,20 +629,54 @@ goto *init
 		}
 	loop
 
-#deffunc messagePeek
-	eventMessagePeekBuffer = strmid(eventOperationArgs(eventExecuteID, eventProgramCounter, 0), eventMessagePeekIndex, 1)
-	eventMessagePeekIndex++
-	if(eventMessagePeekBuffer == ";"){
-		eventMessageBuffer += "\n"
-		eventMessageIndentionInterval = 0
+#defcfunc isAscii int code
+	if(code >= 0 && code <= 127){
+		return TRUE
 	}else{
-		eventMessageBuffer += eventMessagePeekBuffer
-		if(eventMessagePeekBuffer != "") : eventMessageIndentionInterval++
+		return FALSE
 	}
-	if(eventMessageIndentionInterval > 20){
-		eventMessageBuffer += "\n"
-		eventMessageIndentionInterval = 0
+
+#deffunc messagePeek
+	if(eventMessageFullFlag == FALSE){
+		eventMessagePeekBuffer = peek(eventOperationArgs(eventExecuteID, eventProgramCounter, 0), eventMessagePeekIndex)
+		eventMessagePeekIndex++
+		if(eventMessagePeekBuffer == ';'){
+			poke eventMessageBuffer, eventMessagePokeIndex, '\n'
+			eventMessagePokeIndex += 1
+			eventMessageIndentionInterval = 0
+		}else : if(eventMessagePeekBuffer == 0){
+			poke eventMessageBuffer, eventMessagePokeIndex, 0
+			eventMessageFullFlag = TRUE
+		}else{
+			if(isAscii(eventMessagePeekBuffer)){
+				poke eventMessageBuffer, eventMessagePokeIndex, eventMessagePeekBuffer
+				eventMessagePokeIndex++
+			}else{
+				poke eventMessageBuffer, eventMessagePokeIndex, eventMessagePeekBuffer
+				eventMessagePokeIndex++
+				eventMessagePeekBuffer = peek(eventOperationArgs(eventExecuteID, eventProgramCounter, 0), eventMessagePeekIndex)
+				eventMessagePeekIndex++
+				poke eventMessageBuffer, eventMessagePokeIndex, eventMessagePeekBuffer
+				eventMessagePokeIndex++
+			}
+			eventMessageIndentionInterval++
+		}
+		if(eventMessageIndentionInterval > 20){
+			poke eventMessageBuffer, eventMessagePokeIndex, '\n'
+			eventMessagePokeIndex += 1
+			eventMessageIndentionInterval = 0
+		}
 	}
+	return
+
+#deffunc messageInit
+	eventMessageBuffer = 0
+	eventMessagePeekIndex = 0
+	eventMessagePokeIndex = 0
+	eventMessageIndentionInterval = 0
+	eventMessagePeekInterval = 0
+	eventMessageFullFlag = FALSE
+	sdim eventMessageBuffer, 256
 	return
 
 #deffunc getInput
@@ -537,6 +687,7 @@ goto *init
 	down = 0
 	x = 0
 	z = 0
+	c = 0
 	if(ginfo(2) != -1){
 		getkey left, 37
 		getkey right, 39
@@ -544,6 +695,7 @@ goto *init
 		getkey down, 40
 		getkey z, 'Z'
 		getkey x, 'X'
+		getkey c, 'C'
 	}
 	if(stat == 0){
 		if(joypad(2) < 32000 - 16000){
@@ -561,14 +713,19 @@ goto *init
 		if(joypad(8) & 1){
 			z = 1
 		}
-		if(joypad(8) & 4){
+		if(joypad(8) & 2){
 			x = 1
+		}
+		if(joypad(8) & 4){
+			c = 1
 		}
 	}
 	return
 
 #deffunc getSystemInput
 	getkey tmp, 'Z'
+	joyGetPosEx joypad
+	if(joypad(8) & 1) : tmp = 1
 	if(tmp){
 		if(sys_z_trigger){
 			sys_z = TRUE
@@ -632,17 +789,29 @@ goto *init
 	return retval
 
 #deffunc camera double centerX, double centerY, int mapX, int mapY
-	cameraX = centerX - double(SCREEN_X / 2)
-	cameraY = centerY - double(SCREEN_Y / 2)
+	// cameraX = centerX - double(SCREEN_X / 2)
+	// cameraY = centerY - double(SCREEN_Y / 2)
+	cameraX += double(centerX - double(SCREEN_X / 2) - cameraX) * 0.1
+	cameraY += double(centerY - double(SCREEN_Y / 2) - cameraY) * 0.1
 	if(cameraX < 0): cameraX = 0
 	if(cameraX + SCREEN_X > mapX * CHIPSIZE): cameraX = mapX * CHIPSIZE - SCREEN_X
 	if(cameraY < 0): cameraY = 0
 	if(cameraY + SCREEN_Y > mapY * CHIPSIZE): cameraY = mapY * CHIPSIZE - SCREEN_Y
 	return
 
+#deffunc setPlayerDamageRect double x1, double y1, double x2, double y2
+	playerAttackingRectX1 = x1
+	playerAttackingRectY1 = y1
+	playerAttackingRectX2 = x2
+	playerAttackingRectY2 = y2
+	return
+
 *init
 
 	game_state = *game_init
+	gameFPS = 0
+	gameFPSInterval = 0
+	gameFPSBeforeTime = gettime(7)
 
 	title "タイトル未定"
 
@@ -658,6 +827,8 @@ goto *init
 
 	Z_Frame = 0
 	Z_Trigger = FALSE
+
+	C_Trigger = FALSE
 
 	playerJump = 0
 
@@ -675,7 +846,7 @@ goto *init
 	dim chipType, chipCount
 
 	celload DIR_CUR + "\\data\\player.png", 3
-	celdiv 3, PLAYER_WIDTH, PLAYER_HEIGHT, 0, 0
+	celdiv 3, PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2
 
 	notesel notebuf
 	noteload DIR_CUR + "\\data\\chiptype.txt"
@@ -687,9 +858,14 @@ goto *init
 	loop
 	
 	celload DIR_CUR + "\\data\\dash_page8.png", 4
-	celdiv 4, 40, 60, 0, 0
+	celdiv 4, 40, 60, 40 / 2, 60 / 2
 
 	celload DIR_CUR + "\\data\\fukidashi.png", 5
+
+	celload DIR_CUR + "\\data\\message_button.png", 6
+	celdiv 6, 32, 32, 0, 0
+
+	celload DIR_CUR + "\\data\\comment_foot.png", 7
 
 	enemyNote = ""
 	notesel enemyNote
@@ -699,12 +875,39 @@ goto *init
 	notesel eventNote
 	noteload DIR_CUR + "\\data\\event.txt"
 
+	enemyImageNote = ""
+	notesel enemyImageNote
+	noteload DIR_CUR + "\\data\\enemyImage.txt"
+	repeat notemax
+		noteget tmp_str, cnt
+		exist DIR_CUR + "\\data\\" + tmp_str
+		if(strsize != -1){
+			celload DIR_CUR + "\\data\\" + tmp_str, cnt + ENEMY_BUFFER_START_NUM
+			celput_white_init cnt + ENEMY_BUFFER_START_NUM, -1
+		}
+	loop
+
+	eventImageNote = ""
+	notesel eventImageNote
+	noteload DIR_CUR + "\\data\\eventImage.txt"
+	repeat notemax
+		noteget tmp_str, cnt
+		exist DIR_CUR + "\\data\\" + tmp_str
+		if(strsize != -1){
+			celload DIR_CUR + "\\data\\" + tmp_str, cnt + EVENT_BUFFER_START_NUM
+		}
+	loop
+	// stop
+
 	//make fade buffer
-	buffer FADE_BUFFER_HANDLER, SCREEN_X, SCREEN_Y
+	buffer BUFFER_HANDLE_FADE, SCREEN_X, SCREEN_Y
 	color 1, 1, 1
 	boxf
-	gsel 0
 
+	buffer BUFFER_HANDLE_COMMENT, SCREEN_X, 128
+
+	
+	gsel 0
 	gmode 2
 	
 	dim joypad, 13
@@ -714,6 +917,20 @@ repeat
 	redraw 0
 	gosub game_state
 	redraw 1
+	
+	//calculate FPS
+	if(gameFPSInterval == 10){
+		gameFPSNowTime = gettime(7)
+		if(gameFPSNowTime > gameFPSBeforeTime){
+			gameFPS = 10.0 / (double(gameFPSNowTime - gameFPSBeforeTime) * 0.001)
+		}else{
+			gameFPS = 10.0 / (double(1000 + gameFPSNowTime - gameFPSBeforeTime) * 0.001)
+		}
+		title "fps=" + str(gameFPS)
+		gameFPSInterval = 0
+		gameFPSBeforeTime = gettime(7)
+	}
+	gameFPSInterval++
 	
 	await 16
 loop
@@ -730,7 +947,7 @@ loop
 
 	//load data of map
 	notesel notebuf
-	mapFileName = "map_no" + mapNumber + ".txt"
+	mapFileName =  DIR_CUR + "\\data\\" + "map_no" + mapNumber + ".txt"
 	noteload mapFileName
 	noteget line_buf, 0
 	split line_buf, ",", mapSizeX, mapSizeY
@@ -741,10 +958,8 @@ loop
 	noteget line_buf, 2
 	mapBackImageFile = line_buf
 	celload DIR_CUR + "\\data\\" + mapBackImageFile, 2
-	gsel 2
-	backX = ginfo(12)
-	backY = ginfo(13)
-	gsel 0
+	backX = getBufferWidth(2)
+	backY = getBufferHeight(2)
 	playerX = 100.0
 	playerY = 100.0
 	playerXV = 0.0
@@ -793,8 +1008,8 @@ loop
 		ccnt = cnt
 		repeat SCREEN_X / CHIPSIZE + 1
 			pos -cameraX \ CHIPSIZE + cnt * CHIPSIZE, -cameraY \ CHIPSIZE + ccnt * CHIPSIZE
-			if(cameraX / CHIPSIZE + cnt < 0 || cameraX / CHIPSIZE + cnt > mapSizeX * CHIPSIZE) : continue
-			if(cameraY / CHIPSIZE + ccnt < 0 || cameraY / CHIPSIZE + ccnt > mapSizeY * CHIPSIZE) : continue
+			if(cameraX / CHIPSIZE + cnt < 0 || cameraX / CHIPSIZE + cnt >= mapSizeX * CHIPSIZE) : continue
+			if(cameraY / CHIPSIZE + ccnt < 0 || cameraY / CHIPSIZE + ccnt >= mapSizeY * CHIPSIZE) : continue
 			chipid = chip(int(cameraX / CHIPSIZE + cnt), int(cameraY / CHIPSIZE + ccnt))
 			if(chipid == 0):continue //ignore null chip
 			if(chipid >= ENEMY_CHIP_START_NUMBER):continue //ignore enemy chip
@@ -802,95 +1017,270 @@ loop
 		loop
 	loop
 
+	//event draw
+	repeat eventCount
+		pos eventX(cnt) - eventWidth(cnt) / 2 - cameraX, eventY(cnt) - eventHeight(cnt) / 2 - cameraY
+		if(eventImageHandle(cnt) != 0){
+			celput eventImageHandle(cnt) + EVENT_BUFFER_START_NUM
+		}else{
+			color 0, 255, 255
+			boxf eventX(cnt) - eventWidth(cnt) / 2 - cameraX, eventY(cnt) - eventHeight(cnt) / 2 - cameraY, eventX(cnt) + eventWidth(cnt) / 2 - cameraX, eventY(cnt) + eventHeight(cnt) / 2 - cameraY
+			color 0, 0, 0
+		}
+	loop
+
 	//draw player
 	; boxf playerX - cameraX - PLAYER_WIDTH / 2, playerY - cameraY - PLAYER_HEIGHT / 2, playerX - cameraX + PLAYER_WIDTH / 2, playerY - cameraY + PLAYER_HEIGHT / 2
 	if(absf(playerXV) < 0.1){
-		pos playerX - PLAYER_WIDTH / 2 - cameraX, playerY - PLAYER_HEIGHT / 2 - cameraY
-		celput 3, playerFrame / 6 \ 6 + playerDirection * 6
+		pos playerX - cameraX, playerY - cameraY
+		if(playerDirection == -1) : tmp = 0 : else : tmp = 1
+		celput 3, playerFrame / 6 \ 6 + tmp * 6, , , playerRound
 	}else{
-		if(playerDirection == 0){
+		if(playerDirection == -1){
 			xZoom = 1
 		}else{
 			xZoom = -1
 		}
-		pos playerX - 40 / 2 - cameraX + 40 / 2 - xZoom * 20, playerY - 60 / 2 - cameraY
+		pos playerX - cameraX, playerY - cameraY
 		a = playerFrame / 3 \ 10
-		celput 4, ((a)\10-1)+((a)\5-1 < 0)-int((a\10)/5), xZoom
+		celput 4, ((a)\10-1)+((a)\5-1 < 0)-int((a\10)/5), xZoom, , playerRound
 	}
-	if(playerXV < 0) : playerDirection = 0
+	if(playerXV < 0) : playerDirection = -1
 	if(playerXV > 0) : playerDirection = 1
 	playerFrame++
-
-	//get button push state
-	getInput
-
-	//dash button
-	if(x){
-		playerV = 4.5
-	}else{
-		playerV = 2.0
-	}
-
-	//input player move
-	if left{
-		playerDirection = 0
-		if(playerXV > 0.0){
-			playerXV += (-playerV - playerXV) * 0.1
-		}else{
-			playerXV = -playerV
-		}
-	}
-	if right{
-		playerDirection = 1
-		if(playerXV < 0.0){
-			playerXV += (playerV - playerXV) * 0.1
-		}else{
-			playerXV = playerV
-		}
-	}
-	if(left == 0 && right == 0) : playerXV += (0.0 - playerXV) * 0.1
-
-	//jump key
-	if(z && playerJump && Z_Frame == 0 && Z_Trigger){
-		Z_Frame = 15
-		playerJump = 0
-	}
-	if(z){
-		Z_Trigger = FALSE
-	}else{
-		Z_Trigger = TRUE
-	}
-	if(z && Z_Frame != 0){
-		Z_Frame--
-	}
-	if(Z_Frame != 0){
-		playerYV = -7.0
-	}
-	if(z == 0 && Z_Frame != 0){
-		Z_Frame = 0
-		Z_Trigger = TRUE
-	}
-
-	//grabity
-	playerYV += grabityA
-
-	//collide to block
-	playerJump = 0
-	isDash = 0
-	if(x):isDash = 1
-	collide playerX, playerY, playerXV, playerYV, playerJump, PLAYER_WIDTH, PLAYER_HEIGHT, "player"
-
-	//add player speed to position
-	playerX += playerXV
-	playerY += playerYV
 
 	//enemy draw
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
-			pos enemyX(cnt) - cameraX, enemyY(cnt) - cameraY
-			boxf enemyX(cnt) - enemyWidth(cnt) / 2 - cameraX, enemyY(cnt) - enemyHeight(cnt) / 2 - cameraY, enemyX(cnt) + enemyWidth(cnt) / 2 - cameraX, enemyY(cnt) + enemyHeight(cnt) / 2 - cameraY
+			pos enemyX(cnt) - enemyWidth(cnt) / 2 - cameraX, enemyY(cnt) - enemyHeight(cnt) / 2 - cameraY
+			if(enemyDamagedTimer(cnt) == 0){
+				celput enemyImageHandle(cnt) + ENEMY_BUFFER_START_NUM
+			}else{
+				celput_white enemyImageHandle(cnt) + ENEMY_BUFFER_START_NUM
+			}
 		}
 	loop
+
+	//draw comment message
+	repeat eventCount
+		if(eventComment(cnt) != ""){
+			if(eventCommentFadeRate(cnt) > 1.0){
+				//make fukidashi buffer
+				pos 0, -100
+				mes eventComment(cnt)
+				commentStringSizeX = ginfo(14)
+				commentStringSizeY = ginfo(15)
+				gsel BUFFER_HANDLE_COMMENT
+				color 0, 0, 0
+				boxf
+				color 255, 255, 255
+				r = commentStringSizeY / 2 + 3
+				boxf r, 0, r + commentStringSizeX + 3, commentStringSizeY + 6
+				circle 0, 0, commentStringSizeY + 6, commentStringSizeY + 6,  1
+				circle commentStringSizeX, 0, commentStringSizeX + commentStringSizeY + 6, commentStringSizeY + 6,  1
+				gmode 2
+				pos r + commentStringSizeX / 2 - 3
+				celput 7
+				gmode 0
+				color 1, 1, 1
+				pos r, 3
+				mes eventComment(cnt)
+				gsel 0
+
+				//draw fukidashi
+				commentX = eventX(cnt) - commentStringSizeX / 2 - cameraX - commentStringSizeY / 2 + 3
+				commentY = eventY(cnt) - commentStringSizeY - eventHeight(cnt) / 2 - 15 - cameraY
+				pos commentX + ((255.0 - eventCommentFadeRate(cnt)) / 255.0) * double(commentStringSizeX / 2 + r), commentY + ((255.0 - eventCommentFadeRate(cnt)) / 255.0) * double(commentStringSizeY + 15)
+				gmode 4, , , eventCommentFadeRate(cnt)
+				celput BUFFER_HANDLE_COMMENT, , eventCommentFadeRate(cnt) / 255.0, eventCommentFadeRate(cnt) / 255.0
+				gmode 2
+			}
+
+			//calculate fade rate
+			if(inRect(playerX, playerY, eventX(cnt) - 60, eventY(cnt) - 60, eventX(cnt) + 60, eventY(cnt) + 60, TRUE, TRUE) && eventExecuteFlag == FALSE){
+				if(eventCommentFadeRate(cnt) < 255.0) : eventCommentFadeRate(cnt) += 30.0
+				if(eventCommentFadeRate(cnt) > 255.0) : eventCommentFadeRate(cnt) = 255.0
+			}else{
+				eventCommentFadeRate(cnt) -= 30.0
+				if(eventCommentFadeRate(cnt) < 0.0) : eventCommentFadeRate(cnt) = 0.0
+			}
+		}
+	loop
+
+	//get button push state
+	getInput
+
+	if(playerState == PLAYER_STATE_WALK){
+
+		if(eventExecuteFlag == FALSE){
+			//dash button
+			if(x){
+				playerV = 4.5
+			}else{
+				playerV = 2.0
+			}
+		
+			//input player move
+			if left{
+				playerDirection = -1
+				if(playerXV > 0.0){
+					playerXV += (-playerV - playerXV) * 0.1
+				}else{
+					playerXV = -playerV
+				}
+			}
+			if right{
+				playerDirection = 1
+				if(playerXV < 0.0){
+					playerXV += (playerV - playerXV) * 0.1
+				}else{
+					playerXV = playerV
+				}
+			}
+		}
+		if(left == 0 && right == 0 && playerOnBlock()) : playerXV += (0.0 - playerXV) * 0.1
+	
+		//jump key
+		if(eventExecuteFlag == FALSE){
+			if(z && playerJump && Z_Frame == 0 && Z_Trigger){
+				Z_Frame = 15
+				playerJump = 0
+			}
+			if(z){
+				Z_Trigger = FALSE
+			}else{
+				Z_Trigger = TRUE
+			}
+			if(z && Z_Frame != 0){
+				Z_Frame--
+			}
+			if(Z_Frame != 0){
+				playerYV = -7.0
+			}
+			if(z == 0 && Z_Frame != 0){
+				Z_Frame = 0
+				Z_Trigger = TRUE
+			}
+
+			//player attack
+			if(c && C_Trigger == FALSE){
+				playerState = PLAYER_STATE_ATTACK
+				C_Trigger = TRUE
+				initAttack = FALSE
+				playerAttackHitFlag = FALSE
+				if(playerOnBlock()){
+					playerAttackInAir = FALSE
+				}else{
+					playerAttackInAir = TRUE
+					if(up) : playerAttackInUpButton = TRUE : else : playerAttackInUpButton = FALSE
+					if(down) : playerAttackInDownButton = TRUE : else : playerAttackInDownButton = FALSE
+				}
+				if(absf(playerXV) >= 4.0){
+					playerAttackInDash = TRUE
+				}else{
+					playerAttackInDash = FALSE
+				}
+			}
+		}
+
+		//c trigger
+		if(c == FALSE) : C_Trigger = FALSE
+
+	}else : if(playerState == PLAYER_STATE_ATTACK){
+		
+		//player attack
+		if(playerAttackInAir){
+			if(playerAttackInUpButton){ //jumping up
+				pos 0,0
+				mes playerDirection
+				switch playerAttackTimer
+					case 0 : playerXV = 0.0                   : playerYV = 0.0   : swbreak
+					case 1 : playerXV = 0.0                   : playerYV = 0.0   : swbreak
+					case 2 : playerXV = 4.0 * playerDirection : playerYV = -3.0  : playerAttackHitFlag = TRUE : swbreak
+					case 3 : playerXV = 4.0 * playerDirection : playerYV = -7.0  : playerAttackHitFlag = TRUE : swbreak
+					case 4 : playerXV = 4.0 * playerDirection : playerYV = -16.0 : playerAttackHitFlag = TRUE : swbreak
+					case 5 : playerXV = 4.0 * playerDirection : playerYV = -32.0 : playerAttackHitFlag = TRUE : swbreak
+					case 6 : playerXV = 4.0 * playerDirection : playerYV = -32.0 : playerAttackHitFlag = TRUE : swbreak
+					case 7 : playerXV = 4.0 * playerDirection : playerYV = -16.0 : playerAttackHitFlag = TRUE : swbreak
+					case 8 : playerXV = 4.0 * playerDirection : playerYV = -7.0  : playerAttackHitFlag = TRUE : swbreak
+					case 9 : playerXV = 4.0 * playerDirection : playerYV = -3.0  : playerAttackHitFlag = TRUE : swbreak
+				swend
+				if(playerAttackTimer >= 9) : initAttack = TRUE
+			}else : if(playerAttackInDownButton){ //drop sword
+				playerXV = 6.0 * playerDirection : playerYV = 9.0
+				playerAttackHitFlag = TRUE
+				playerAttackHitDamage = 20
+				if(playerOnBlock()){
+					initAttack = TRUE
+				}
+				if(playerTimer >= 20) : initAttack = TRUE
+			}else{ //rotate sword
+				playerRound += deg2rad(30) * playerDirection
+				playerAttackHitFlag = TRUE
+				playerAttackHitDamage = 20
+				if(absf(playerRound) >= deg2rad(360 * 2)) : initAttack = TRUE
+				if(playerOnBlock()){
+					initAttack = TRUE
+				}
+			}
+		}else{
+			if(playerAttackInDash){
+				if(playerAttackTimer == 0){
+					playerDashSwordEndX = playerX + 200.0 * double(playerDirection)
+				}
+				playerXV = (playerDashSwordEndX - playerX) * 0.1
+				if(absf(playerXV) > 5.0){
+					playerAttackHitFlag = TRUE
+					playerAttackHitDamage = 30
+				}else{
+					playerAttackHitFlag = FALSE
+				}
+				if(playerAttackTimer >= 30) : initAttack = TRUE
+			}else{
+				playerAttackHitFlag = TRUE
+				playerAttackHitDamage = 20
+				if(playerAttackTimer >= 20) : initAttack = TRUE
+			}
+		}
+
+		//collide to enemy in player arracking
+		if(playerAttackHitFlag){
+			repeat enemyCount
+				if(enemyIsAlive(cnt)){
+					if(collideObjectOnAnotherObject(playerX, playerY, PLAYER_WIDTH, PLAYER_HEIGHT, enemyX(cnt), enemyY(cnt), enemyWidth(cnt), enemyHeight(cnt))){
+						enemyDamagedTimer(cnt) = 30
+						enemyDamagedValue(cnt) = playerAttackHitDamage
+						enemyYV(cnt) = -5.0
+						if(enemyX(cnt) < playerX) : enemyDamagedDirection(cnt) = ENEMY_LEFT : else : enemyDamagedDirection(cnt) = ENEMY_RIGHT
+					}
+				}
+			loop
+		}
+
+		if(playerAttackTimer >= 100) : initAttack = TRUE
+		if(initAttack){
+			playerRound = 0.0
+			playerAttackTimer = 0
+			playerState = PLAYER_STATE_WALK
+			initAttack = FALSE
+			playerAttackHitFlag = FALSE
+		}else{
+			playerAttackTimer++
+		}
+	}
+
+	//player grabity
+	playerYV += grabityA
+	
+	//player collide to block
+	playerJump = 0
+	isDash = 0
+	if(x):isDash = 1
+	collideObjectToBlock playerX, playerY, playerXV, playerYV, playerJump, PLAYER_WIDTH, PLAYER_HEIGHT, "player"
+
+	//add player speed to position
+	playerX += playerXV
+	playerY += playerYV
 
 	//enemy spawn
 	repeat enemyCount
@@ -910,96 +1300,115 @@ loop
 		}
 	loop
 
+	//enemy damage
+	repeat enemyCount
+		if(enemyIsAlive(cnt)){
+			if(enemyDamagedTimer(cnt) > 0){
+				enemyXV(cnt) = double(enemyDamagedDirection(cnt)) * -1.0
+				enemyDamagedTimer(cnt)--
+				enemyYV(cnt) += grabityA
+				if(enemyDamagedTimer(cnt) == 0){
+					enemyHP(cnt) -= enemyDamagedValue(cnt)
+					if(enemyHP(cnt) <= 0){
+						enemyDespawn(cnt)
+					}
+				}
+			}
+		}
+	loop
+
 	//enemy action
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
-			pos cnt * 100, 0
-			mes "state:" + enemyState(cnt)
-			mes "timer:" + enemyTimer(cnt)
-			mes "direction:" + enemyDirection(cnt)
-			mes "[action]"
-			cond_num = judgeCondition(cnt, enemyActionCondition, enemyActionConditionValue)
-			mes "result:" + cond_num
-			if(cond_num == -1) : continue
-			ccnt = cnt
-			repeat ENEMYACTIONSAMETIME_COUNT_MAX
-				mes "action:" + enemyActionType(ccnt, cond_num, cnt)
-				if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_JUMP){
-					x = int(enemyX(ccnt) / CHIPSIZE)
-					y = int((enemyY(ccnt) + enemyHeight(ccnt) / 2 + 1) / CHIPSIZE)
-					if(x >= 0 && x < STAGE_X && y >= 0 && y < STAGE_Y){
-					// boxf x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY, (x + 1) * CHIPSIZE - cameraX, (y + 1) * CHIPSIZE - cameraY 
-						if(chip(x, y) > 0){
-							if(chipType(chip(x, y) - 1) == 0){
-								pos enemyX(ccnt) - cameraX, enemyY(ccnt) - cameraY
-								mes "JUMP"
-								enemyYV(ccnt) = -enemyActionValue(ccnt, cond_num, cnt)
-								mes "aaaa"
-								mes "val:" + enemyActionValue(ccnt, cond_num, cnt)
+			if(enemyDamagedTimer == 0){
+				cond_num = judgeCondition(cnt, enemyActionCondition, enemyActionConditionValue)
+				// mes "result:" + cond_num
+				if(cond_num == -1) : continue
+				ccnt = cnt
+				repeat ENEMYACTIONSAMETIME_COUNT_MAX
+					// mes "action:" + enemyActionType(ccnt, cond_num, cnt)
+					if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_JUMP){
+						x = int(enemyX(ccnt) / CHIPSIZE)
+						y = int((enemyY(ccnt) + enemyHeight(ccnt) / 2 + 1) / CHIPSIZE)
+						if(x >= 0 && x < STAGE_X && y >= 0 && y < STAGE_Y){
+						// boxf x * CHIPSIZE - cameraX, y * CHIPSIZE - cameraY, (x + 1) * CHIPSIZE - cameraX, (y + 1) * CHIPSIZE - cameraY 
+							if(chip(x, y) > 0){
+								if(chipType(chip(x, y) - 1) == 0){
+									pos enemyX(ccnt) - cameraX, enemyY(ccnt) - cameraY
+									mes "JUMP"
+									enemyYV(ccnt) = -enemyActionValue(ccnt, cond_num, cnt)
+									mes "aaaa"
+									mes "val:" + enemyActionValue(ccnt, cond_num, cnt)
+								}
 							}
 						}
+					}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_RETURN){
+						enemyDirection(ccnt) *= -1
+					}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_SETSTATE){
+						enemyState(ccnt) = int(enemyActionValue(ccnt, cond_num, cnt))
+					}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_ADDSTATE){
+						enemyState(ccnt) += int(enemyActionValue(ccnt, cond_num, cnt))
+					}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_TIMERSTART){
+						enemyTimerState(ccnt) = ENEMY_TIMER_ON
+					}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_TIMERSTOP){
+						enemyTimerState(ccnt) = ENEMY_TIMER_OFF
+					}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_TIMERRESET){
+						enemyTimer(ccnt) = 0
+					}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_SHOOTTOPLAYER){
+						vector_x = playerX - (enemyX(ccnt) + (enemyWidth(ccnt) / 2) * double(enemyDirection(ccnt)))
+						vector_y = playerY - enemyY(ccnt)
+						vector_size = sqrt(vector_x * vector_x + vector_y * vector_y)
+						shoot ccnt, ENEMY_BULLET_TYPE_PROCEED, (vector_x / vector_size) * enemyActionValue(ccnt, cond_num, cnt), (vector_y / vector_size) * enemyActionValue(ccnt, cond_num, cnt)
+					}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_SHOOTFRONT){
+						shoot ccnt, ENEMY_BULLET_TYPE_PROCEED, double(enemyDirection(ccnt)) * enemyActionValue(ccnt, cond_num, cnt), 0
+					}else{
+						break
 					}
-				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_RETURN){
-					enemyDirection(ccnt) *= -1
-				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_SETSTATE){
-					enemyState(ccnt) = int(enemyActionValue(ccnt, cond_num, cnt))
-				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_ADDSTATE){
-					enemyState(ccnt) += int(enemyActionValue(ccnt, cond_num, cnt))
-				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_TIMERSTART){
-					enemyTimerState(ccnt) = ENEMY_TIMER_ON
-				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_TIMERSTOP){
-					enemyTimerState(ccnt) = ENEMY_TIMER_OFF
-				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_TIMERRESET){
-					enemyTimer(ccnt) = 0
-				}else : if(enemyActionType(ccnt, cond_num, cnt) == ENEMY_ACTION_SHOOTTOPLAYER){
-					vector_x = playerX - (enemyX(ccnt) + (enemyWidth(ccnt) / 2) * double(enemyDirection(ccnt)))
-					vector_y = playerY - enemyY(ccnt)
-					vector_size = sqrt(vector_x * vector_x + vector_y * vector_y)
-					shoot ccnt, ENEMY_BULLET_TYPE_PROCEED, (vector_x / vector_size) * enemyActionValue(ccnt, cond_num, cnt), (vector_y / vector_size) * enemyActionValue(ccnt, cond_num, cnt)
-				}else{
-					break
-				}
-			loop
+				loop
+			}
 		}
 	loop
 
 	//enemy move
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
-			pos cnt * 100, 200
-			mes "[move]"
-			cond_num = judgeCondition(cnt, enemyMoveTypeCondition, enemyMoveTypeConditionValue)
-			mes "result:" + cond_num
-			// pos cnt * 100, 0
-			// mes enemyMoveType(cnt, cond_num)
-			if(cond_num == -1) : continue
-			ccnt = cnt
-			repeat ENEMYACTIONSAMETIME_COUNT_MAX
-				if(enemyMoveType(ccnt, cond_num, cnt) == ENEMY_MOVE_PROCEED){
-					if(enemyDirection(ccnt) == ENEMY_LEFT){
-						enemyXV(ccnt) = -enemyMoveValue(ccnt, cond_num, cnt)
-					}else : if(enemyDirection(ccnt) == ENEMY_RIGHT){
-						enemyXV(ccnt) = enemyMoveValue(ccnt, cond_num, cnt)
+			if(enemyDamagedTimer == 0){
+				// pos cnt * 100, 200
+				// mes "[move]"
+				cond_num = judgeCondition(cnt, enemyMoveTypeCondition, enemyMoveTypeConditionValue)
+				// mes "result:" + cond_num
+				// pos cnt * 100, 0
+				// mes enemyMoveType(cnt, cond_num)
+				if(cond_num == -1) : continue
+				ccnt = cnt
+				repeat ENEMYACTIONSAMETIME_COUNT_MAX
+					if(enemyMoveType(ccnt, cond_num, cnt) == ENEMY_MOVE_PROCEED){
+						if(enemyDirection(ccnt) == ENEMY_LEFT){
+							enemyXV(ccnt) = -enemyMoveValue(ccnt, cond_num, cnt)
+						}else : if(enemyDirection(ccnt) == ENEMY_RIGHT){
+							enemyXV(ccnt) = enemyMoveValue(ccnt, cond_num, cnt)
+						}
+						enemyYV(ccnt) += grabityA
+					}else : if(enemyMoveType(ccnt, cond_num, cnt) == ENEMY_DONT_MOVE){
+						enemyYV(ccnt) += grabityA
+					}else{
+						break
 					}
-					enemyYV(ccnt) += grabityA
-				}else : if(enemyMoveType(ccnt, cond_num, cnt) == ENEMY_DONT_MOVE){
-					enemyYV(ccnt) += grabityA
-				}else{
-					break
-				}
-				pos enemyX(ccnt) - cameraX, enemyY(ccnt) - cameraY + 30
-				mes enemyXV(ccnt)
-				mes enemyYV(ccnt)
-			loop
+					// pos enemyX(ccnt) - cameraX, enemyY(ccnt) - cameraY + 30
+					// mes enemyXV(ccnt)
+					// mes enemyYV(ccnt)
+				loop
+			}
 
 			tmp = 0
-			collide enemyX(cnt), enemyY(cnt), enemyXV(cnt), enemyYV(cnt), tmp, enemyWidth(cnt), enemyHeight(cnt), "enemy"
+			collideObjectToBlock enemyX(cnt), enemyY(cnt), enemyXV(cnt), enemyYV(cnt), tmp, enemyWidth(cnt), enemyHeight(cnt), "enemy"
 
 			//add enemy speed to position
 			enemyX(cnt) += enemyXV(cnt)
 			enemyY(cnt) += enemyYV(cnt)
 		}
 	loop
+
 	//enemy timer
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
@@ -1051,7 +1460,7 @@ loop
 		ccnt = cnt
 		repeat ENEMY_BULLET_COUNT_MAX
 			if(enemyBulletIsAlive(ccnt, cnt)){
-				if(inWall(enemyBulletX(ccnt, cnt), enemyBulletY(ccnt, cnt))){
+				if(isBlock(enemyBulletX(ccnt, cnt), enemyBulletY(ccnt, cnt))){
 					enemyBulletIsAlive(ccnt, cnt) = FALSE
 				}
 			}
@@ -1061,25 +1470,14 @@ loop
 	pos 0, 0
 	mes eventCount
 
-	//event draw
-	repeat eventCount
-		pos eventX(cnt) - EVENT_WIDTH / 2 - cameraX, eventY(cnt) - EVENT_HEIGHT / 2 - cameraY
-		color 0, 255, 255
-		boxf eventX(cnt) - EVENT_WIDTH / 2 - cameraX, eventY(cnt) - EVENT_HEIGHT / 2 - cameraY, eventX(cnt) + EVENT_WIDTH / 2 - cameraX, eventY(cnt) + EVENT_HEIGHT / 2 - cameraY
-		color 0, 0, 0
-	loop
-
 	//event drop in grabity
 	repeat eventCount
-		tmp_yv = grabityA
-		tmp_xv = 0.0
+		eventYV(cnt) += grabityA
+		eventXV(cnt) = 0.0
 		tmp = 0
-		collide eventX(cnt), eventY(cnt), tmp_xv, tmp_yv, tmp, EVENT_WIDTH, EVENT_HEIGHT, "event"
-		pos eventX(cnt) - EVENT_WIDTH / 2 - cameraX, eventY(cnt) - EVENT_HEIGHT / 2 - cameraY
-		mes tmp_yv
-		mes eventY(cnt)
-		eventX(cnt) += tmp_xv
-		eventY(cnt) += tmp_yv
+		collideObjectToBlock eventX(cnt), eventY(cnt), eventXV(cnt), eventYV(cnt), tmp, eventWidth(cnt), eventHeight(cnt), "event"
+		eventX(cnt) += eventXV(cnt)
+		eventY(cnt) += eventYV(cnt)
 	loop
 
 	//event trigger
@@ -1087,8 +1485,8 @@ loop
 		repeat eventCount
 			switch eventTriggerType(cnt)
 				case EVENT_TRIGGER_BUTTON
-					if(absf(playerX - eventX(cnt)) < (PLAYER_WIDTH + EVENT_WIDTH) / 2 && absf(playerY - eventY(cnt)) < (PLAYER_HEIGHT + EVENT_HEIGHT) / 2){
-						if(up){
+					if(absf(playerX - eventX(cnt)) < (PLAYER_WIDTH + eventWidth(cnt)) / 2 && absf(playerY - eventY(cnt)) < (PLAYER_HEIGHT + eventHeight(cnt)) / 2){
+						if(up && playerOnBlock()){
 							eventExecuteID = cnt
 							eventExecuteFlag = TRUE
 						}
@@ -1102,9 +1500,7 @@ loop
 				fadeRate = 0.0
 
 				//init Message valiables
-				eventMessageBuffer = ""
-				eventMessagePeekIndex = 0
-				eventMessageIndentionInterval = 0
+				messageInit
 
 				break
 			}
@@ -1117,32 +1513,40 @@ loop
 		//draw fade in event
 		pos 0, 0
 		gmode 3, 640, 480, int(fadeRate)
-		gcopy FADE_BUFFER_HANDLER
-		fadeRate += (150.0 - fadeRate) * 0.1
+		gcopy BUFFER_HANDLE_FADE
+		fadeRate += (100.0 - fadeRate) * 0.1
 		gmode 2
 
 		//execute each operations
 		switch eventOperation(eventExecuteID, eventProgramCounter)
 			case EVENT_OPERATION_MESSAGE
+				if(eventMessagePeekInterval \ 4 == 0){
+					messagePeek
+				}
+				eventMessagePeekInterval++
 				pos 0, 0
 				celput 5
-				messagePeek
-				pos 100,100
+				pos 130, 70
+				font "メイリオ", 18, 0
 				mes eventMessageBuffer
+				if(eventMessageFullFlag){
+					pos 450, 70 + 80
+					celput 6, (eventMessagePeekInterval \ 40) / 20
+				}
+				sysfont 0
 				getSystemInput
-				if(sys_z && eventMessagePeekBuffer != ""){
+				if(sys_z && eventMessageFullFlag == FALSE){
 					repeat
 						messagePeek
-						if(eventMessagePeekBuffer == "") : break
+						if(eventMessageFullFlag) : break
 					loop
-				}else : if(sys_z && eventMessagePeekBuffer == ""){
-					eventMessageBuffer = ""
-					eventMessageIndentionInterval = 0
-					eventMessagePeekIndex = 0
+				}else : if(sys_z && eventMessageFullFlag){
+					messageInit
 					eventProgramCounter++
 				}
 				swbreak
 			default
+				Z_Frame = TRUE
 				eventExecuteFlag = FALSE
 				swbreak
 		swend

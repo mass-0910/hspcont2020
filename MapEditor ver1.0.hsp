@@ -1,0 +1,247 @@
+/*
+マップエディタ
+*/
+
+#define PRGNAME "Map Editor"
+#define VERSION "1.0"
+
+#define WinX 1216
+#define WinY 960
+
+#define MAPMAX 256
+
+*Initialize
+	
+	//スクリーン設定
+	screen 0, WinX, WinY
+	title PRGNAME + " ver " + VERSION
+	
+	//配列宣言
+	dim map, MAPMAX, MAPMAX
+	
+	//使用する変数の初期化
+	cameraX = 0
+	cameraY = 0
+	chipnum = 0
+
+	mapname = ""
+	chipnum = 0
+	mapmaxstr = ""
+	bgmname = ""
+	mapbackimage = ""
+
+	backImageIsSet = 0
+	
+*MainInit
+	
+	//UI表示
+	clrobj
+	objsize 170, 30
+	pos 970, 10
+	mes "マップ名"
+	input mapname
+	pos 970, 60
+	button goto "新規作成", *MapMake
+	button goto "ロード", *MapLoad
+	pos 970, 130
+	mes "チップ番号"
+	input chipnum
+	pos 970, 290
+	mes "マップ幅"
+	input mapmaxstr
+	pos 970, 360
+	mes "BGM"
+	input bgmname
+	pos 970, 430
+	mes "背景画像"
+	input mapbackimage
+	pos 1140, 450
+	objsize 40, 30
+	button gosub "読込", *BackImageLoad
+	objsize 170, 30
+	pos 970, 670
+	button goto "セーブ", *MapSave
+	
+	//マップチップの読み込み
+	celload dir_cur + "\\data\\" + "chip.png", 1
+	celdiv 1, 32, 32, 0, 0
+	
+	//タイマーの初期化
+	timer = 0
+	
+*Main
+	
+	//描画部
+	redraw 0
+
+	//背景画像の表示
+	if(backImageIsSet){
+		pos 0, 0
+		gcopy 2, 0, 0, 960, 960
+	}else{
+		color 0, 0, 0
+		boxf 0, 0, 960, 960
+	}
+	
+	//マップの表示
+	repeat 30
+		curcnt = cnt
+		repeat 30
+			if(map(cameraX + cnt, cameraY + curcnt) <= 0){
+				continue
+			}else : if(map(cameraX + cnt, cameraY + curcnt) >= 100){
+				color 255, 255, 0 : boxf cnt * 32, curcnt * 32, cnt * 32 + 32, curcnt * 32 + 32 : color 0, 0, 0
+				pos cnt * 32, curcnt * 32
+				mes map(cameraX + cnt, cameraY + curcnt)
+			}else : if(map(cameraX + cnt, cameraY + curcnt) >= 50){
+				color 0, 255, 255 : boxf cnt * 32, curcnt * 32, cnt * 32 + 32, curcnt * 32 + 32 : color 0, 0, 0
+				pos cnt * 32, curcnt * 32
+				mes map(cameraX + cnt, cameraY + curcnt)
+			}else{
+				pos cnt * 32, curcnt * 32
+				celput 1, map(cameraX + cnt, cameraY + curcnt) - 1
+			}
+		loop
+	loop
+	
+	//現在指定しているマップチップの表示
+	pos 990, 200
+	celput 1, chipnum
+	
+	//現在の左上座標の表示
+	color 255, 255, 255
+	boxf 970, 530, 1100, 600
+	color 0, 0, 0
+	pos 970, 530
+	mes "マウスカーソル位置"
+	mes "( " + str(mousex/32 + cameraX) + " , " + str(mousey/32 + cameraY) + " )"
+	mes "画面左上のマップ座標"
+	mes "( " + cameraX + " , " + cameraY + " )"
+	mes "画面右下のマップ座標"
+	mes "( " + str(cameraX+29) + " , " + str(cameraY+29) + " )"
+	
+	//描画部終了
+	redraw 1
+	
+	//マップへの描画
+	if(ginfo(2) != -1 && mousex < 960){
+		getkey a, 1:if a{
+			if(chipnum >= 50){
+				map(cameraX + int(mousex / 32), cameraY + int(mousey / 32)) = chipnum
+			}else{
+				map(cameraX + int(mousex / 32), cameraY + int(mousey / 32)) = chipnum + 1
+			}
+		}
+		getkey a, 2:if a{
+			map(cameraX + int(mousex / 32), cameraY + int(mousey / 32)) = 0
+		}
+	}
+	
+	//マップ表示位置の移動
+	if(timer \ 2 == 0){
+		getkey a, 37:if(a && cameraX >= 1):cameraX--
+		getkey a, 38:if(a && cameraY >= 1):cameraY--
+		getkey a, 39:if(a && cameraX <= 254 - 30):cameraX++
+		getkey a, 40:if(a && cameraY <= 254 - 30):cameraY++
+	}
+	
+	timer++
+	
+	await 10
+	goto *Main
+	
+*MapMake
+	
+	//.mapの制作
+	dialog "" + mapname + "のマップを作製します。\nよろしいでしょうか？\n(元々あるマップの名前を指定すると、すべて0に初期化されます。)", 2, "マップデータの新規作成"
+	if(stat == 7) : goto *MainInit
+	notesel mapbuf
+	mapbuf = "256,256\nfieldbgm.mp3\nbackimage.png\n"
+	repeat MAPMAX
+		curcnt = cnt
+		repeat MAPMAX
+			mapbuf += "0,"
+		loop
+		mapbuf += "\n"
+	loop
+	notesave dir_cur + "\\data\\" + mapname + ".txt"
+	
+	goto *MapLoad
+	
+*MapLoad
+	
+	//.mapの読み込み
+	exist dir_cur + "\\data\\" + mapname + ".txt"
+	if(strsize == -1){
+		dialog "指定したマップ名のファイルが存在しません", 1
+		goto *MainInit
+	}
+	notesel mapbuf
+	noteload dir_cur + "\\data\\" + mapname + ".txt"
+	
+	//.mapからmap配列にデータを入れる
+	noteget lineone, 0
+	i = 0
+	getstr tmpstr, lineone, i, ','
+	mapmaxX = int(tmpstr)
+	i += strsize
+	getstr tmpstr, lineone, i, ','
+	mapmaxY = int(tmpstr)
+	noteget bgmname, 1
+	noteget mapbackimage, 2
+	repeat MAPMAX
+		curcnt = cnt
+		noteget mapline, cnt + 3
+		i = 0
+		repeat MAPMAX
+			getstr tmpstr, mapline, i, ','
+			i += strsize
+			map(cnt, curcnt) = int(tmpstr)
+		loop
+	loop
+	
+	mapmaxstr = "" + mapmaxX + "," + mapmaxY
+
+	gosub *BackImageLoadWithoutAleat
+	
+	goto *MainInit
+	
+*MapSave
+	
+	//セーブ確認
+	dialog "現在のマップをセーブします。\nよろしいでしょうか？", 2, "セーブ確認"
+	if(stat == 7):goto *MainInit
+	
+	//.mapへの変換
+	notesel mapbuf
+	mapbuf = ""
+	mapbuf = mapmaxstr + "\n" + bgmname + "\n" + mapbackimage + "\n"
+	repeat MAPMAX
+		curcnt = cnt
+		repeat MAPMAX
+			mapbuf += str(map(cnt, curcnt)) + ","
+		loop
+		mapbuf += "\n"
+	loop
+	notesave dir_cur + "\\data\\" + mapname + ".txt"
+	
+	goto *MainInit
+
+*BackImageLoad
+	exist dir_cur + "\\data\\" + mapbackimage
+	if(strsize == -1){
+		dialog "指定した背景画像が存在しません", 1
+		return
+	}
+	celload dir_cur + "\\data\\" + mapbackimage, 2
+	backImageIsSet = 1
+	return
+
+*BackImageLoadWithoutAleat
+	exist dir_cur + "\\data\\" + mapbackimage
+	if(strsize == -1){
+		return
+	}
+	celload dir_cur + "\\data\\" + mapbackimage, 2
+	backImageIsSet = 1
+	return

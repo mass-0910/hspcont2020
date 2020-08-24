@@ -1,4 +1,21 @@
 #id 0
 image : 0
+height : 30
 trigger : button
-program : mes < Hello World!aaaaaaaaaaaaaaaa;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+comment : ふわっと出る吹き出し
+program : mes < いい感じの吹き出し表示でしょ
+program : mes < まだまだ完成は遠い...;がんばるんじゃぞ...
+---
+#id 1
+image : 0
+trigger : button
+comment : 吹き出し2
+program : mes < aaaaaaaaa
+program : mes < bbbbbbbbb
+---
+#id 2
+#看板
+image : 1
+trigger : button
+comment : ↑キーで読む
+program : mes < 上下左右ボタンで移動

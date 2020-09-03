@@ -1,104 +1,104 @@
 #include "hspogg.as"
 #include "mod_joystick.as"
 
-#define TRUE 1
-#define FALSE 0
+#define global TRUE 1
+#define global FALSE 0
 
 // screen size
-#define SCREEN_X 640
-#define SCREEN_Y 480
+#define global SCREEN_X 640
+#define global SCREEN_Y 480
 // a stage chip amount(x * y)
-#define STAGE_X 256
-#define STAGE_Y 256
+#define global STAGE_X 256
+#define global STAGE_Y 256
 //a chip width and height
-#define CHIPSIZE 32
+#define global CHIPSIZE 32
 
 //player width and height
-#define PLAYER_WIDTH 30
-#define PLAYER_HEIGHT 60
+#define global PLAYER_WIDTH 30
+#define global PLAYER_HEIGHT 60
 //player state number
-#define PLAYER_STATE_WALK   1
-#define PLAYER_STATE_ATTACK 2
+#define global PLAYER_STATE_WALK   1
+#define global PLAYER_STATE_ATTACK 2
 
 //player weapon number
-#define PLAYER_WEAPON_NONE  0
-#define PLAYER_WEAPON_SWORD 1
-#define PLAYER_WEAPON_GUN   2
+#define global PLAYER_WEAPON_NONE  0
+#define global PLAYER_WEAPON_SWORD 1
+#define global PLAYER_WEAPON_GUN   2
 
 //enemy number on map file
-#define ENEMY_CHIP_START_NUMBER 50
+#define global ENEMY_CHIP_START_NUMBER 50
 //enemy max count
-#define ENEMY_COUNT_MAX 64
+#define global ENEMY_COUNT_MAX 64
 //enemy action count max
-#define ENEMYACTION_COUNT_MAX 8
-#define ENEMYCOND_COUNT_MAX 8
-#define ENEMYACTIONSAMETIME_COUNT_MAX 5
+#define global ENEMYACTION_COUNT_MAX 8
+#define global ENEMYCOND_COUNT_MAX 8
+#define global ENEMYACTIONSAMETIME_COUNT_MAX 5
 //enemy direction value
-#define ENEMY_LEFT  -1
-#define ENEMY_RIGHT 1
+#define global ENEMY_LEFT  -1
+#define global ENEMY_RIGHT 1
 //enemy bullet value
-#define ENEMY_BULLET_COUNT_MAX 10
+#define global ENEMY_BULLET_COUNT_MAX 10
 
 //enemy move id
-#define ENEMY_DONT_MOVE    -1
-#define ENEMY_MOVE_PROCEED 1
+#define global ENEMY_DONT_MOVE    -1
+#define global ENEMY_MOVE_PROCEED 1
 
 //enemy action id
-#define ENEMY_ACTION_JUMP          1
-#define ENEMY_ACTION_RETURN        2
-#define ENEMY_ACTION_TURNTOPLAYER  3
-#define ENEMY_ACTION_SETSTATE      4
-#define ENEMY_ACTION_ADDSTATE      5
-#define ENEMY_ACTION_TIMERSTART    6
-#define ENEMY_ACTION_TIMERSTOP     7
-#define ENEMY_ACTION_TIMERRESET    8
-#define ENEMY_ACTION_SHOOTTOPLAYER 9
-#define ENEMY_ACTION_SHOOTFRONT    10
+#define global ENEMY_ACTION_JUMP          1
+#define global ENEMY_ACTION_RETURN        2
+#define global ENEMY_ACTION_TURNTOPLAYER  3
+#define global ENEMY_ACTION_SETSTATE      4
+#define global ENEMY_ACTION_ADDSTATE      5
+#define global ENEMY_ACTION_TIMERSTART    6
+#define global ENEMY_ACTION_TIMERSTOP     7
+#define global ENEMY_ACTION_TIMERRESET    8
+#define global ENEMY_ACTION_SHOOTTOPLAYER 9
+#define global ENEMY_ACTION_SHOOTFRONT    10
 
 //enemy condition id
-#define ENEMY_COND_DEFAULT          1
-#define ENEMY_COND_FRONTWALL        2
-#define ENEMY_COND_MATCHSTATE       3
-#define ENEMY_COND_TIMER            4
-#define ENEMY_COND_TIMERTHAN        5
-#define ENEMY_COND_INLEFTOFPLAYER   6
-#define ENEMY_COND_INRIGHTOFPLAYER  7
-#define ENEMY_COND_INTOPOFPLAYER    8
-#define ENEMY_COND_INBOTTOMOFPLAYER 10
-#define ENEMY_COND_ONGROUND         11
-#define ENEMY_COND_FRONTHOLL        12
+#define global ENEMY_COND_DEFAULT          1
+#define global ENEMY_COND_FRONTWALL        2
+#define global ENEMY_COND_MATCHSTATE       3
+#define global ENEMY_COND_TIMER            4
+#define global ENEMY_COND_TIMERTHAN        5
+#define global ENEMY_COND_INLEFTOFPLAYER   6
+#define global ENEMY_COND_INRIGHTOFPLAYER  7
+#define global ENEMY_COND_INTOPOFPLAYER    8
+#define global ENEMY_COND_INBOTTOMOFPLAYER 10
+#define global ENEMY_COND_ONGROUND         11
+#define global ENEMY_COND_FRONTHOLL        12
 
-#define ENEMY_BULLET_TYPE_PROCEED   0
+#define global ENEMY_BULLET_TYPE_PROCEED   0
 
 //enemy timer status
-#define ENEMY_TIMER_ON  1
-#define ENEMY_TIMER_OFF 2
+#define global ENEMY_TIMER_ON  1
+#define global ENEMY_TIMER_OFF 2
 
 //enemy buffer start
-#define ENEMY_BUFFER_START_NUM  30
+#define global ENEMY_BUFFER_START_NUM  30
 
 //event number on map file
 
 //event max count
-#define EVENT_CHIP_START_NUMBER 100
-#define EVENT_COUNT_MAX 64
-#define EVENT_OPERATION_MAX 64
-#define EVENT_OPERATION_ARG_MAX 8
+#define global EVENT_CHIP_START_NUMBER 100
+#define global EVENT_COUNT_MAX 64
+#define global EVENT_OPERATION_MAX 64
+#define global EVENT_OPERATION_ARG_MAX 8
 
 //event trigger type
-#define EVENT_TRIGGER_BUTTON 1
+#define global EVENT_TRIGGER_BUTTON 1
 
 //event operation type
-#define EVENT_OPERATION_MESSAGE 1
+#define global EVENT_OPERATION_MESSAGE 1
 
 //fade buffer handler number
-#define BUFFER_HANDLE_FADE 10
-#define BUFFER_HANDLE_COMMENT 11
+#define global BUFFER_HANDLE_FADE 10
+#define global BUFFER_HANDLE_COMMENT 11
 
 //event buffer start
-#define EVENT_BUFFER_START_NUM  60
+#define global EVENT_BUFFER_START_NUM  60
 
-#define WHITE_BUFFER_START 100
+#define global WHITE_BUFFER_START 1000
 
 dim chip, STAGE_X, STAGE_Y
 
@@ -134,8 +134,12 @@ dim enemyWidth, ENEMY_COUNT_MAX
 dim enemyHeight, ENEMY_COUNT_MAX
 dim enemyID, ENEMY_COUNT_MAX
 dim enemyImageHandle, ENEMY_COUNT_MAX
+dim enemyImageFrameTimer, ENEMY_COUNT_MAX
+dim enemyImageNowAnime, ENEMY_COUNT_MAX
+dim enemyImageNowFrame, ENEMY_COUNT_MAX
 dim enemyIsAlive, ENEMY_COUNT_MAX
 dim enemyHP, ENEMY_COUNT_MAX
+dim enemyDefaultHP, ENEMY_COUNT_MAX
 dim enemyState, ENEMY_COUNT_MAX
 dim enemyTimer, ENEMY_COUNT_MAX
 dim enemyTimerState, ENEMY_COUNT_MAX
@@ -217,13 +221,18 @@ goto *init
 #defcfunc playerOnBlock
 	return isBlock(playerX, playerY + PLAYER_HEIGHT / 2 + 1) || isBlock(playerX + PLAYER_WIDTH / 2 - 1, playerY + PLAYER_HEIGHT / 2 + 1) || isBlock(playerX - PLAYER_WIDTH / 2 + 1, playerY + PLAYER_HEIGHT / 2 + 1)
 
-#deffunc celput_white_init int handle, int divnum
+#deffunc celput_white_init int handle, int divnum, int celWidth, int celHeight
 	beforeBufferHandle = ginfo(3)
 	buffer handle + WHITE_BUFFER_START, 128, 128
 	color 0, 0, 0
 	boxf
-	pos 0, 0
-	if(divnum >= 0) : celput handle, divnum : else : celput handle
+	if(divnum >= 0){
+		pos celWidth / 2, celHeight / 2
+		celput handle, divnum
+	}else{
+		pos 0, 0
+		celput handle
+	}
 	repeat 128
 		ccnt = cnt
 		repeat 128
@@ -237,8 +246,8 @@ goto *init
 	gsel beforeBufferHandle
 	return
 
-#deffunc celput_white int handle
-	celput handle + WHITE_BUFFER_START
+#deffunc celput_white int handle, int direction
+	celput handle + WHITE_BUFFER_START, , direction * -1
 	return
 
 //Hit decision instruction
@@ -532,7 +541,9 @@ goto *init
 			enemyWidth(cnt) = int(getAttributeString(enemyNote, ID, "width", 0))
 			enemyHeight(cnt) = int(getAttributeString(enemyNote, ID, "height", 0))
 			enemyHP(cnt) = int(getAttributeString(enemyNote, ID, "hp", 0))
+			enemyDefaultHP(cnt) = enemyHP(cnt)
 			enemyImageHandle(cnt) = int(getAttributeString(enemyNote, ID, "image", 0))
+			enemyImageFrameTimer(cnt) = 0
 			ccnt_ = cnt
 			mes "loop start"
 			repeat
@@ -564,6 +575,7 @@ goto *init
 #deffunc enemyDespawn int cnt_index
 	enemyX(cnt_index) = enemyOriginX(cnt_index)
 	enemyY(cnt_index) = enemyOriginY(cnt_index)
+	enemyHP(cnt_index) = enemyDefaultHP(cnt_index)
 	enemyState(cnt_index) = 0
 	enemyDirection(cnt_index) = ENEMY_LEFT
 	enemyIsAlive(cnt_index) = FALSE
@@ -806,6 +818,84 @@ goto *init
 	playerAttackingRectY2 = y2
 	return
 
+#module ImageList imageHandler, imageDivWidth, imageDivHeight, imageAnimeCount, imageFrameCount, imageFrameTimer, imageNowAnime, imageNowFrame, imageDamagedAnime
+
+	#define IMAGE_COUNT_MAX 64
+	#define IMAGE_ANIME_COUNT_MAX 10
+
+	#modinit
+		dim imageHandler, IMAGE_COUNT_MAX
+		dim imageDivWidth, IMAGE_COUNT_MAX
+		dim imageDivHeight, IMAGE_COUNT_MAX
+		dim imageAnimeCount, IMAGE_COUNT_MAX
+		dim imageFrameCount, IMAGE_COUNT_MAX, IMAGE_ANIME_COUNT_MAX
+		dim imageFrameTimer, IMAGE_COUNT_MAX
+		dim imageNowAnime, IMAGE_COUNT_MAX
+		dim imageNowFrame, IMAGE_COUNT_MAX
+		dim imageDamagedAnime, IMAGE_COUNT_MAX
+		return
+
+	#modfunc loadImage str notefilename, int startHandleIndex
+		notefile = ""
+		buf = ""
+		notesel notefile
+		noteload DIR_CUR + "\\data\\" + notefilename
+		noteunsel
+		repeat IMAGE_COUNT_MAX
+			filename = getAttributeString(notefile, cnt, "file", 0)
+			if(filename == "null") : break
+			celload DIR_CUR + "\\data\\" + filename, cnt + startHandleIndex
+			imageHandler(cnt) = cnt + startHandleIndex
+
+			buf = getAttributeString(notefile, cnt, "cel_width", 0)
+			if(buf == "null") : dialog "in ID " + str(cnt) + ": イメージファイルの横方向サイズが指定されていません(cel_width)", 1, "error" : stop
+			imageDivWidth(cnt) = int(buf)
+			buf = getAttributeString(notefile, cnt, "cel_height", 0)
+			if(buf == "null") : dialog "in ID " + str(cnt) + ": イメージファイルの横方向サイズが指定されていません(cel_height)", 1, "error" : stop
+			imageDivHeight(cnt) = int(buf)
+			ccnt = cnt
+			repeat IMAGE_ANIME_COUNT_MAX
+				imageFrameCount(ccnt, cnt) = getBufferWidth(imageHandler(ccnt)) / imageDivWidth(ccnt)
+			loop
+			repeat IMAGE_ANIME_COUNT_MAX
+				buf = getAttributeString(notefile, ccnt, "framecount", cnt)
+				if(buf == "null") : break
+				anime_number_str = "" : frame_count_str = ""
+				split buf, "is", anime_number_str, frame_count_str
+				imageFrameCount(ccnt, int(strtrim(anime_number_str))) = int(strtrim(frame_count_str))
+			loop
+			imageAnimeCount(cnt) = getBufferHeight(imageHandler(cnt)) / imageDivHeight(cnt)
+			celdiv imageHandler(cnt), imageDivWidth(cnt), imageDivHeight(cnt), imageDivWidth(cnt) / 2, imageDivHeight(cnt) / 2
+
+			imageDamagedAnime(cnt) = int(getAttributeString(notefile, cnt, "damaged_anime", 0))
+			if(getAttributeString(notefile, cnt, "damaged_anime", 0) != "null"){
+				celput_white_init imageHandler(cnt), imageDamagedAnime(cnt) * (getBufferWidth(imageHandler(cnt)) / imageDivWidth(cnt)), imageDivWidth(cnt), imageDivHeight(cnt)
+			}
+		loop
+		return
+	
+	#modfunc drawListImage int index, int anime, int frame, double posX, double posY, int direction
+		pos posX, posY
+		celput imageHandler(index), anime * (getBufferWidth(imageHandler(index)) / imageDivWidth(index)) + frame \ imageFrameCount(index, anime), direction * -1
+		return
+	
+	#modfunc drawListImage_damage int index, double posX, double posY, int white, int direction
+		if(white){
+			if(direction == -1){
+				pos posX - imageDivWidth(index) / 2, posY - imageDivHeight(index) / 2
+				celput_white imageHandler(index), -1
+			}else{
+				pos posX + imageDivWidth(index) / 2, posY - imageDivHeight(index) / 2
+				celput_white imageHandler(index), 1
+			}
+		}else{
+			pos posX, posY
+			celput imageHandler(index), imageDamagedAnime(index) * imageFrameCount(index), direction * -1
+		}
+		return
+
+#global
+
 *init
 
 	game_state = *game_init
@@ -875,17 +965,8 @@ goto *init
 	notesel eventNote
 	noteload DIR_CUR + "\\data\\event.txt"
 
-	enemyImageNote = ""
-	notesel enemyImageNote
-	noteload DIR_CUR + "\\data\\enemyImage.txt"
-	repeat notemax
-		noteget tmp_str, cnt
-		exist DIR_CUR + "\\data\\" + tmp_str
-		if(strsize != -1){
-			celload DIR_CUR + "\\data\\" + tmp_str, cnt + ENEMY_BUFFER_START_NUM
-			celput_white_init cnt + ENEMY_BUFFER_START_NUM, -1
-		}
-	loop
+	newmod enemyImageList, ImageList
+	loadImage enemyImageList, "enemyImage.txt", ENEMY_BUFFER_START_NUM
 
 	eventImageNote = ""
 	notesel eventImageNote
@@ -897,7 +978,6 @@ goto *init
 			celload DIR_CUR + "\\data\\" + tmp_str, cnt + EVENT_BUFFER_START_NUM
 		}
 	loop
-	// stop
 
 	//make fade buffer
 	buffer BUFFER_HANDLE_FADE, SCREEN_X, SCREEN_Y
@@ -998,7 +1078,19 @@ loop
 
 	//set camera position
 	camera playerX, playerY, mapSizeX, mapSizeY
-	
+
+	gosub *game_draw
+	gosub *game_control
+	if(eventExecuteFlag == FALSE){
+		gosub *game_objectMove
+	}
+	gosub *game_enemyManage
+	gosub *game_eventManage
+
+	return
+
+*game_draw
+
 	//draw back image
 	pos -(double(cameraX) / double(mapSizeX * CHIPSIZE - SCREEN_X)) * double(backX - SCREEN_X), -(double(cameraY) / double(mapSizeY * CHIPSIZE - SCREEN_Y)) * double(backY - SCREEN_Y)
 	celput 2 
@@ -1052,11 +1144,22 @@ loop
 	//enemy draw
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
-			pos enemyX(cnt) - enemyWidth(cnt) / 2 - cameraX, enemyY(cnt) - enemyHeight(cnt) / 2 - cameraY
+			; pos enemyX(cnt) - enemyWidth(cnt) / 2 - cameraX, enemyY(cnt) - enemyHeight(cnt) / 2 - cameraY
+			; if(enemyDamagedTimer(cnt) == 0){
+			; 	celput enemyImageHandle(cnt) + ENEMY_BUFFER_START_NUM
+			; }else{
+			; 	celput_white enemyImageHandle(cnt) + ENEMY_BUFFER_START_NUM
+			; }
 			if(enemyDamagedTimer(cnt) == 0){
-				celput enemyImageHandle(cnt) + ENEMY_BUFFER_START_NUM
+				drawListImage enemyImageList, enemyImageHandle(cnt), enemyImageNowAnime(cnt), enemyImageNowFrame(cnt), enemyX(cnt) - cameraX, enemyY(cnt) - cameraY, enemyDirection(cnt)
+				enemyImageFrameTimer(cnt)++
+				if(enemyImageFrameTimer(cnt) >= 10) : enemyImageNowFrame(cnt)++ : enemyImageFrameTimer(cnt) = 0
 			}else{
-				celput_white enemyImageHandle(cnt) + ENEMY_BUFFER_START_NUM
+				if(enemyDamagedTimer(cnt) / 5 \ 2){
+					drawListImage_damage enemyImageList, enemyImageHandle(cnt), enemyX(cnt) - cameraX, enemyY(cnt) - cameraY, TRUE, enemyDirection(cnt)
+				}else{
+					drawListImage_damage enemyImageList, enemyImageHandle(cnt), enemyX(cnt) - cameraX, enemyY(cnt) - cameraY, FALSE, enemyDirection(cnt)
+				}
 			}
 		}
 	loop
@@ -1106,6 +1209,20 @@ loop
 			}
 		}
 	loop
+
+	//draw enemy bullet
+	repeat ENEMY_COUNT_MAX
+		ccnt = cnt
+		repeat ENEMY_BULLET_COUNT_MAX
+			if(enemyBulletIsAlive(ccnt, cnt)){
+				boxf enemyBulletX(ccnt, cnt) - 2 - cameraX, enemyBulletY(ccnt, cnt) - 2 - cameraY, enemyBulletX(ccnt, cnt) + 2 - cameraX, enemyBulletY(ccnt, cnt) + 2 - cameraY
+			}
+		loop
+	loop
+
+	return
+
+*game_control
 
 	//get button push state
 	getInput
@@ -1269,6 +1386,10 @@ loop
 		}
 	}
 
+	return
+
+*game_objectMove
+
 	//player grabity
 	playerYV += grabityA
 	
@@ -1281,6 +1402,65 @@ loop
 	//add player speed to position
 	playerX += playerXV
 	playerY += playerYV
+
+	//enemy move
+	repeat enemyCount
+		if(enemyIsAlive(cnt)){
+			if(enemyDamagedTimer == 0){
+				// pos cnt * 100, 200
+				// mes "[move]"
+				cond_num = judgeCondition(cnt, enemyMoveTypeCondition, enemyMoveTypeConditionValue)
+				// mes "result:" + cond_num
+				// pos cnt * 100, 0
+				// mes enemyMoveType(cnt, cond_num)
+				if(cond_num == -1) : continue
+				ccnt = cnt
+				repeat ENEMYACTIONSAMETIME_COUNT_MAX
+					if(enemyMoveType(ccnt, cond_num, cnt) == ENEMY_MOVE_PROCEED){
+						if(enemyDirection(ccnt) == ENEMY_LEFT){
+							enemyXV(ccnt) = -enemyMoveValue(ccnt, cond_num, cnt)
+						}else : if(enemyDirection(ccnt) == ENEMY_RIGHT){
+							enemyXV(ccnt) = enemyMoveValue(ccnt, cond_num, cnt)
+						}
+						enemyYV(ccnt) += grabityA
+					}else : if(enemyMoveType(ccnt, cond_num, cnt) == ENEMY_DONT_MOVE){
+						enemyYV(ccnt) += grabityA
+					}else{
+						break
+					}
+					// pos enemyX(ccnt) - cameraX, enemyY(ccnt) - cameraY + 30
+					// mes enemyXV(ccnt)
+					// mes enemyYV(ccnt)
+				loop
+			}
+
+			tmp = 0
+			collideObjectToBlock enemyX(cnt), enemyY(cnt), enemyXV(cnt), enemyYV(cnt), tmp, enemyWidth(cnt), enemyHeight(cnt), "enemy"
+
+			//add enemy speed to position
+			enemyX(cnt) += enemyXV(cnt)
+			enemyY(cnt) += enemyYV(cnt)
+		}
+	loop
+
+	//move enemy bullet
+	repeat ENEMY_COUNT_MAX
+		ccnt = cnt
+		repeat ENEMY_BULLET_COUNT_MAX
+			if(enemyBulletIsAlive(ccnt, cnt)){
+				switch enemyBulletType(ccnt, cnt)
+					case ENEMY_BULLET_TYPE_PROCEED
+						enemyBulletX(ccnt, cnt) += enemyBulletXV(ccnt, cnt)
+						enemyBulletY(ccnt, cnt) += enemyBulletYV(ccnt, cnt)
+						swbreak
+				swend
+			}
+		loop
+	loop
+
+	return
+
+*game_enemyManage
 
 	//enemy spawn
 	repeat enemyCount
@@ -1369,46 +1549,6 @@ loop
 		}
 	loop
 
-	//enemy move
-	repeat enemyCount
-		if(enemyIsAlive(cnt)){
-			if(enemyDamagedTimer == 0){
-				// pos cnt * 100, 200
-				// mes "[move]"
-				cond_num = judgeCondition(cnt, enemyMoveTypeCondition, enemyMoveTypeConditionValue)
-				// mes "result:" + cond_num
-				// pos cnt * 100, 0
-				// mes enemyMoveType(cnt, cond_num)
-				if(cond_num == -1) : continue
-				ccnt = cnt
-				repeat ENEMYACTIONSAMETIME_COUNT_MAX
-					if(enemyMoveType(ccnt, cond_num, cnt) == ENEMY_MOVE_PROCEED){
-						if(enemyDirection(ccnt) == ENEMY_LEFT){
-							enemyXV(ccnt) = -enemyMoveValue(ccnt, cond_num, cnt)
-						}else : if(enemyDirection(ccnt) == ENEMY_RIGHT){
-							enemyXV(ccnt) = enemyMoveValue(ccnt, cond_num, cnt)
-						}
-						enemyYV(ccnt) += grabityA
-					}else : if(enemyMoveType(ccnt, cond_num, cnt) == ENEMY_DONT_MOVE){
-						enemyYV(ccnt) += grabityA
-					}else{
-						break
-					}
-					// pos enemyX(ccnt) - cameraX, enemyY(ccnt) - cameraY + 30
-					// mes enemyXV(ccnt)
-					// mes enemyYV(ccnt)
-				loop
-			}
-
-			tmp = 0
-			collideObjectToBlock enemyX(cnt), enemyY(cnt), enemyXV(cnt), enemyYV(cnt), tmp, enemyWidth(cnt), enemyHeight(cnt), "enemy"
-
-			//add enemy speed to position
-			enemyX(cnt) += enemyXV(cnt)
-			enemyY(cnt) += enemyYV(cnt)
-		}
-	loop
-
 	//enemy timer
 	repeat enemyCount
 		if(enemyIsAlive(cnt)){
@@ -1416,31 +1556,6 @@ loop
 				enemyTimer(cnt)++
 			}
 		}
-	loop
-
-	//draw enemy bullet
-	repeat ENEMY_COUNT_MAX
-		ccnt = cnt
-		repeat ENEMY_BULLET_COUNT_MAX
-			if(enemyBulletIsAlive(ccnt, cnt)){
-				boxf enemyBulletX(ccnt, cnt) - 2 - cameraX, enemyBulletY(ccnt, cnt) - 2 - cameraY, enemyBulletX(ccnt, cnt) + 2 - cameraX, enemyBulletY(ccnt, cnt) + 2 - cameraY
-			}
-		loop
-	loop
-
-	//move enemy bullet
-	repeat ENEMY_COUNT_MAX
-		ccnt = cnt
-		repeat ENEMY_BULLET_COUNT_MAX
-			if(enemyBulletIsAlive(ccnt, cnt)){
-				switch enemyBulletType(ccnt, cnt)
-					case ENEMY_BULLET_TYPE_PROCEED
-						enemyBulletX(ccnt, cnt) += enemyBulletXV(ccnt, cnt)
-						enemyBulletY(ccnt, cnt) += enemyBulletYV(ccnt, cnt)
-						swbreak
-				swend
-			}
-		loop
 	loop
 
 	//delete enemy bullet
@@ -1469,6 +1584,10 @@ loop
 
 	pos 0, 0
 	mes eventCount
+
+	return
+
+*game_eventManage
 
 	//event drop in grabity
 	repeat eventCount

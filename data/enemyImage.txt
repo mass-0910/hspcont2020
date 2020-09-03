@@ -1,1 +1,4 @@
-enemy.png
+file : enemy.png
+cel_width : 32
+cel_height : 32
+damaged_anime : 1
